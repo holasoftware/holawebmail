@@ -1,0 +1,15 @@
+{% extends "webmail/base.html" %}
+{% load static webmail i18n %}
+
+{% block content_area %}
+<h3>{% trans "Import mail" %}</h3>
+<p>{% trans "Select .eml file from your local file system" %}</p>
+<form class="form" action="{% mail_url 'import_mail' %}" method="POST" enctype="multipart/form-data">
+{% csrf_token %}
+<input type="file" name="eml">
+<button class="btn btn-primary">{% trans "Submit" %}</button>
+{% if form_errors.eml %}
+<p class="field-error">{{ form_errors.eml }}</p>
+{% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% load webmail %}{% if disk_usage %}  
+<div id="quotadisplay" class="quota-widget" data-original-title="Disk usage: 1.8 MB / 250 MB (1%)" title="">
+    <i class="fa fa-hdd-o" style="font-size: 18px"></i> Disk usage:
+
+    <div class="quota-graph">
+        <span class="quota-bar">
+            <span class="quota-bar-value" style="width: {{ disk_usage.percentaje }}%;"></span>
+        </span>
+        <span class="quota-percentage" title="Disk usage: {{ disk_usage.mb }} MB / 250 MB ({{ disk_usage.percentaje }}%)">{{ disk_usage.percentaje }}%</span>
+    </div>
+</div>
+{% endif %}
+
+<div class="power-off" style="text-align: right; display: block;">
+    <a href="{% url 'webmail:logout' %}"><i class="fa fa-power-off"></i></a>
+</div>

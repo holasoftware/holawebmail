@@ -1,0 +1,25 @@
+{% extends "webmail/base.html" %}
+{% load i18n %}
+
+{% block content_area %}
+<h3 class="page-title">{{ page_title }}</h3>
+{% if include_after_title %}
+{% include include_after_title with data=include_after_title_data only %}
+{% endif %}
+{% if page_description %}
+<div class="page-description">{{ page_description }}</div>
+{% endif %}
+<div class="{{ object_name }}_{% if form.instance %}edit obj-edit" data-object-id="{{ form.instance.id }}"{% else %}add obj-add"{% endif %}>  
+{% include "webmail/includes/form.html" %}
+</div> <!-- /obj-edit -->
+{% if model_form_bottom %}
+<div class="model-form-bottom" style="margin-top:30px">
+{% include model_form_bottom.template_name with data=model_form_bottom.data only %}
+</div>
+{% endif %}
+<div class="content-area-footer">
+    <div class="go-back-wrap">
+        <a class="go-back" href="{% if back_url %}{{ back_url }}{% else %}#{% endif %}">{% if back_url_text %}{{ back_url_text }}{% else %}{% trans "Back" %}{% endif %}</a>
+    </div>
+</div>
+{% endblock %}

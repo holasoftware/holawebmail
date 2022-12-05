@@ -1,0 +1,3 @@
+var DEFAULT_SRP_GROUP = 3072;
+var DEFAULT_SRP_HASH_FN = 'sha-256';
+

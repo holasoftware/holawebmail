@@ -1,0 +1,173 @@
+{% load i18n static webmail utils %}<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+	<title>{% block html_title %}Webmail{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!--<link rel="icon" href="{% static 'favicon.ico' %}">-->
+
+    <link rel="stylesheet" href="{% static 'webmail/lib/normalize.css' %}" />  
+    <link rel="stylesheet" href="{% static 'webmail/lib/bootstrap/css/bootstrap.css' %}">
+    <link rel="stylesheet" href="{% static 'webmail/lib/simplemde/simplemde.min.css' %}">
+    <link rel="stylesheet" href="{% static 'webmail/lib/tagator/fm.tagator.jquery.css' %}">
+    <link rel='stylesheet' href="{% static 'webmail/lib/font-awesome/css/font-awesome.css' %}">
+    <link rel='stylesheet' href="{% static 'webmail/lib/slideout/slideout.css' %}">
+    <link rel='stylesheet' href="{% static 'webmail/css/notifier.css' %}">
+    <link rel="stylesheet" href="{% static 'webmail/css/webmail.css' %}">
+    {% if extra_stylesheets %}
+    {% for style_url in extra_stylesheets %}
+    <link rel='stylesheet' href="{% static style_url %}">
+    {% endfor %}{% endif %}
+    <script>
+        var i18n = null;
+
+        var URL_PATTERNS_STRING_FORMATS = {{ url_patterns_string_formats | to_json }};
+        var PAGE_INITIALIZER = {};
+
+        var PAGE_NAME = "{{ page_name }}";
+        var PAGE_CONTEXT_DATA = {% if init_page_data %}{{ init_page_data | to_json }}{% else %}null{% endif %};
+
+        var USER = {
+            "username": "{{ user.username }}",
+            "displayed_name": {% if user.displayed_name %}"{{ user.displayed_name }}"{% else %}null{% endif %}
+        }
+
+        var MAILBOX_ID = {% if mbox %}{{ mbox }}{% else %}null{% endif %};
+
+        var WEBMAIL_SESSION_ID = "{{ webmail_session_id }}";
+
+        var CSRF_MIDDLEWARE_TOKEN = "{{csrf_token}}";
+        {% if extra_js_vars %}{% for varname, value in extra_js_vars.items %}
+        var {{ varname }} = {{ value | to_json }};
+        {% endfor %}{% endif %}
+    </script>
+
+    <script src="{% static 'webmail/lib/jquery/jquery-3.4.1.js' %}"></script>
+    <script src="{% static 'webmail/lib/popper/popper.min.js' %}"></script>
+    <script src="{% static 'webmail/lib/bootstrap/js/bootstrap.js' %}"></script>
+
+
+    <script src="{% static 'webmail/lib/slideout/slideout.js' %}"></script>
+
+    <script src="{% static 'webmail/lib/simplemde/simplemde.min.js' %}"></script>
+    <script src="{% static 'webmail/lib/tagator/fm.tagator.jquery.js' %}"></script>
+    <script src="{% static 'webmail/lib/marked/marked.js' %}"></script>
+    <script src="{% static 'webmail/lib/format_text.js' %}"></script>
+    <script src="{% static 'webmail/lib/jquery-hoverIntent/jquery.hoverIntent.js' %}"></script>
+
+    <script src="{% static 'webmail/js/page/message.js' %}"></script>
+    <script src="{% static 'webmail/js/page/folder.js' %}"></script>
+    <script src="{% static 'webmail/js/page/compose.js' %}"></script>
+    <script src="{% static 'webmail/js/message_serialization.js' %}"></script>
+    <script src="{% static 'webmail/js/password-revealer.js' %}"></script>
+    <script src="{% static 'webmail/js/notifier.js' %}"></script>
+    <script src="{% static 'webmail/js/webmail.js' %}"></script>
+    {% if extra_scripts %}
+    {% for script_url in extra_scripts %}<script src="{% static script_url %}"></script>
+    {% endfor %}{% endif %}
+    {% block extra_head %}{{ extra_head | safe }}{% endblock %}
+</head>
+<body>
+    <div id="webmail" {% if mbox %}data-mbox-id="{{ mbox }}" {% endif %}data-page="{{ page_name }}">
+        <div id="mobile-menu" class="sidebar">
+            <div class="sidebar-item mobile-menu-header mb-3 overflow-hidden">
+                <button class="toggle-mobile-menu btn btn-outline-secondary pull-right"><i class="fa fa-times"></i></button>
+            </div>
+
+            {% if mailbox_menu %}
+            <div class="sidebar-item mb-3">
+                {% include "webmail/includes/select_mailbox.html" %}
+            </div>
+            {% endif %}
+            {% if mbox %}
+            <div class="sidebar-item mb-3">
+            {% include "webmail/includes/folderlist.html" %}
+            </div>
+            {% endif %}
+            <div class="sidebar-item mb-3">
+            {% include "webmail/includes/webmail_management_links.html" %}
+            </div>
+
+            <div class="sidebar-footer">  
+            {% include "webmail/includes/sidebar_footer.html" %}
+            </div>
+        </div>
+        <div id="webmail-interior">
+            <div id="topbar">
+                <div id="topbar-inner">
+                    <div class="container">
+                        {% if brand_name %}
+                        <div class="brand">
+                            <a class="brand-link" href="{% mail_url 'init' %}">{{ brand_name }}</a>
+                        </div>
+                        {% endif %}
+
+                        <div id="topbar--right-side">
+                            <div id="user-profile" style="display: inline-block">
+                                <b>{% trans "User:" %}</b> <a href="{% mail_url 'profile' %}">{% if user.displayed_name %}{{ user.displayed_name }}{% else %}{{ user.username }}{% endif %}</a>
+                                <div class="dropdown user-profile-dropdown"><a href="{% url 'webmail:logout' %}">{% trans "Logout" %}</a></div>
+                            </div>
+
+                            <button type="button" style="margin-left: 1px" class="toggle-mobile-menu btn btn-outline-secondary d-inline-block d-md-none">&nbsp;<i class="fa fa-bars" aria-hidden="true"></i>&nbsp;</button>
+
+                        </div>
+                       {% block topbar %}{% endblock %}
+                    </div>
+                </div> <!-- /topbar-inner -->
+            </div> <!-- /topbar -->
+
+            <div id="mainarea">
+
+                    <div class="container">
+                        <div class="row">
+                            <div class="col col-md-2 col-lg-2 pr-md-2">
+                                <sidebar id="sidebar" class="sidebar d-md-flex d-none flex-column">
+                                    {% if mailbox_menu %}
+                                    <div class="sidebar-item">
+                                        {% include "webmail/includes/select_mailbox.html" %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if show_compose_btn %}
+                                    <div class="sidebar-item">
+                                        <a href="{% mail_url 'compose' %}" class="btn btn-danger btn-primary btn-block btn-compose">
+                                            <i class="fa fa-edit"></i> {% trans "Compose" %}
+                                        </a>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if mbox is not None and show_folders %}
+                                    <div class="sidebar-item">
+                                    {% include "webmail/includes/folderlist.html" %}
+                                    </div>
+                                    {% endif %}
+
+                                    <div class="sidebar-item">
+                                    {% include "webmail/includes/webmail_management_links.html" %}
+                                    </div>
+
+                                    <div class="sidebar-footer">  
+                                    {% include "webmail/includes/sidebar_footer.html" %}
+			                        </div>
+                                </sidebar>
+                            </div> <!-- ends first column -->
+                            <div class="col col-md-10 col-lg-10 pl-md-2 col-12">
+                                {% for message in messages %}
+                                <div class="{{ message|bootstrap_message_classes }} alert-dismissible fade show" role="alert">
+                                    <button type="button" class="close" data-dismiss="alert" aria-label="{% trans 'close' %}">&#215;</button>
+                                    {{ message }}
+                                </div>
+                                {% endfor %}
+                                <div id="content-area">{% block content_area %}{% endblock %}</div> <!-- /content-area -->
+                            </div> <!-- ends second column -->
+                        </div> <!-- /row -->
+                    </div> <!-- /container -->
+
+            </div> <!-- /mainarea -->
+        </div> <!-- /webmail-interior -->
+    </div> <!-- /webmail -->
+    {% block before_end_body %}{{ before_end_body }}{% endblock %}
+</body>
+</html>
+

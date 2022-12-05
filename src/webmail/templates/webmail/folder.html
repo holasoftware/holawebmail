@@ -1,0 +1,180 @@
+{% extends "webmail/base.html" %}
+{% load webmail i18n %}
+
+
+{% block content_area %}{% if is_empty_folder %}
+<div class="container text-center"><span class="empty-folder">{% trans "Empty folder" %}</span></div>
+{% else %}
+<div class="d-flex" style="display: flex; flex-direction: row-reverse; margin-bottom: 20px;">
+<div id="searchbox" class="my-3 my-lg-0 flex-md-grow-0 flex-grow-1 w-md-auto w-100"> 
+    <form class="form-inline" method="GET" action="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=True has_attachments=filters.has_attachments %}">
+        <input type="hidden" name="mbox" value="{{ mbox }}">
+        <div class="btn-group" role="group" style="flex-grow:1">
+            <button id="searchfilters-btn" type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="caret"></span><span class="sr-only">{% trans "Toggle Dropdown" %}</span>
+            </button>
+            <div id="search_text_filters" class="dropdown-menu" aria-labelledby="search_text_filters">
+                <span class="dropdown-item"><input name="text_in_subject" value="1" type="checkbox" checked> {% trans "Subject" %}</span>
+                <span class="dropdown-item"><input name="text_in_body" value="1" type="checkbox" checked> {% trans "Body" %}</span>
+                <span class="dropdown-item"><input name="text_in_from_email" value="1" type="checkbox" checked> {% trans "From" %}</span>
+            </div>
+           <input name="q" id="searchboxinput" class="form-control" type="text" placeholder="Search">
+           <button class="btn btn-primary" type="submit"><i class="fa fa-search" aria-hidden="true"></i></button>
+        </div>
+    </form>
+</div>
+</div>
+<form id="form_message_action" method="POST" action="{% mail_url 'mails_bulk_action' folder_name=active_folder %}">
+{% csrf_token %}
+
+<div id="messagelist-controls" class="mb-3">
+    {% if show_compose_btn %}
+    <a href="{% mail_url 'compose' %}" class="btn btn-danger btn-primary btn-sm d-md-none btn-compose">
+        <i class="fa fa-edit"></i> {% trans "Compose" %}
+    </a>
+    {% endif %}
+
+    <div class="btn-group">
+        <button id="check_all" type="button" class="btn btn-outline-secondary btn-sm">
+            <input data-check-toggle="obj_list" type="checkbox" value="1">
+        </button>
+        <button id="filter_email" type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span class="caret"></span><span class="sr-only">{% trans "Toggle Dropdown" %}</span>
+        </button>
+        <div class="dropdown-menu filter-messages-menu" aria-labelledby="filter_email">
+            <a class="dropdown-item" href="{% mail_url 'show_folder' folder_name=active_folder %}">{% trans "All" %}</a>
+            {% ifequal filters.read True %}
+            <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=None has_attachments=filters.has_attachments %}">{% trans "Read" %}</a>
+            {% else %}
+            <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=True has_attachments=filters.has_attachments %}">{% trans "Read" %}</a>
+            {% endifequal %}
+
+            {% ifequal filters.read False %}
+            <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=None has_attachments=filters.has_attachments %}">{% trans "Unread" %}</a>
+            {% else %}
+            <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=False has_attachments=filters.has_attachments %}">{% trans "Unread" %}</a>
+            {% endifequal %}
+
+            {% ifequal filters.starred True %}
+            <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=None read=filters.read has_attachments=filters.has_attachments %}">{% trans "Starred" %}</a>
+            {% else %}
+            <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=True read=filters.read has_attachments=filters.has_attachments %}">{% trans "Starred" %}</a>
+            {% endifequal %}
+
+            {% ifequal filters.starred False %}
+            <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=None read=filters.read has_attachments=filters.has_attachments %}">{% trans "Unstarred" %}</a>
+            {% else %}
+            <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=False read=filters.read has_attachments=filters.has_attachments %}">{% trans "Unstarred" %}</a>
+            {% endifequal %}
+
+            {% ifequal filters.has_attachments True %}
+            <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=None %}">{% trans "With attachments" %}</a>
+            {% else %}
+            <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=True %}">{% trans "With attachments" %}</a>
+            {% endifequal %}
+
+            {% ifequal filters.has_attachments False %}
+            <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=None %}">{% trans "No attachments" %}</a>
+            {% else %}
+            <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=False %}">{% trans "No attachments" %}</a>
+            {% endifequal %}
+        </div>
+    </div>
+
+    <a type="button" href="{% mail_url 'show_folder' folder_name=active_folder %}" class="btn btn-outline-secondary btn-sm"><i class="fa fa-refresh" aria-hidden="true"></i></a>
+
+    <!--
+    <div class="btn-group" role="group" aria-label="Button group with nested dropdown">
+        <button type="button" class="btn btn-outline-secondary btn-sm"><i class="fa fa-star" aria-hidden="true"></i></button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"><i class="fa fa-star-o" aria-hidden="true"></i></button>
+    </div> -->
+
+    <div class="btn-group" role="group">
+        <button id="email_bulk_action" type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        {% trans "Actions" %}
+        </button>
+        <div class="dropdown-menu" aria-labelledby="email_bulk_action">
+            <button type="submit" name="action_name" value="mark_as_read" class="dropdown-item"><i class="fa fa-envelope-open-o" aria-hidden="true"></i> {% trans "Mark as read" %}</button>
+            <button type="subtmit" name="action_name" value="mark_as_unread" class="dropdown-item" href="#"><i class="fa fa-envelope-o" aria-hidden="true"></i> {% trans "Mark as unread" %}</button>
+            <button type="subtmit" name="action_name" value="star" class="dropdown-item" href="#"><i class="fa fa-star" aria-hidden="true"></i> {% trans "Add star" %}</button>
+            <button type="subtmit" name="action_name" value="unstar" class="dropdown-item" href="#"><i class="fa fa-star-o" aria-hidden="true"></i> {% trans "Remove star" %}</button>
+            {% if active_folder == 'trash' or active_folder == 'spam' %}
+            <button type="subtmit" name="action_name" value="delete_permanently" class="dropdown-item" href="#"><i class="fa fa-trash-o" aria-hidden="true"></i> {% trans "Delete permanently" %}</button>
+            {% else %}
+            <button type="subtmit" name="action_name" value="delete" class="dropdown-item" href="#"><i class="fa fa-trash-o" aria-hidden="true"></i> {% trans "Delete" %}</button>
+            {% endif %}
+            {% if active_folder != 'sent' and show_folder_spam and user_can_mark_as_spam %}
+            <div class="dropdown-divider"></div>
+            {% if active_folder == 'spam' %}
+            <button type="subtmit" name="action_name" value="mark_as_not_junk" class="dropdown-item" href="#"><i class="fa fa-check" aria-hidden="true"></i> {% trans "Mark as good mail" %}</button>
+            {% else %}
+            <button type="subtmit" name="action_name" value="spam" class="dropdown-item" href="#"><i class="fa fa-ban" aria-hidden="true"></i> {% trans "Spam" %}</button>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% if active_folder == 'trash' %}
+    <button name="action_name" value="empty_trash" type="submit" class="btn btn-outline-secondary btn-sm">
+    {% trans "Empty trash" %}
+    </button>
+    {% elif active_folder == 'spam' %}
+    <button name="action_name" value="delete_all_spam" type="submit" class="btn btn-outline-secondary btn-sm">
+    {% trans "Delete all spam" %}
+    </button>  
+    {% endif %}
+    
+    {% if page_obj.has_other_pages %}
+    <div class="message-pagination pull-right">
+        <span class="message-pagination--page-range text-muted"><b>{{ page_obj.start_index }}</b>–<b>{{ page_obj.end_index }}</b> of <b>{{ page_obj.paginator.num_pages }}</b></span>
+        <div class="message-pagination--controls btn-group btn-group-sm">
+            {% if page_obj.has_previous %}
+            <a class="btn btn-outline-secondary" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=filters.has_attachments page=page_obj.previous_page_number %}">
+                <i class="fa fa-chevron-left" aria-hidden="true"></i>
+            </a>
+            {% else %}
+            <span class="btn btn-outline-secondary disabled">
+                <i class="fa fa-chevron-left" aria-hidden="true"></i>
+            </span>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="btn btn-outline-secondary" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=filters.has_attachments page=page_obj.next_page_number %}">
+                <i class="fa fa-chevron-right" aria-hidden="true"></i>
+            </a>
+            {% else %}
+            <span class="btn btn-outline-secondary disabled">
+                <i class="fa fa-chevron-right" aria-hidden="true"></i>
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+</div> <!-- /header -->
+
+<div id="messagelist" class="list-group">
+    {% for page_item in page_obj %}
+        <div class="message {% if page_item.is_read %}read{% else %}unread{% endif %} {% if page_item.is_starred %}starred{% else %}not-starred{% endif %} list-group-item list-group-item-action">
+            <div class="message--checkbox-container">
+                <input name="obj_list" value="{{ page_item.id }}" type="checkbox">
+            </div>
+            <button class="star-btn" data-star-url="{% mail_url 'add_star' message_id=page_item.id %}" data-unstar-url="{% mail_url 'remove_star' message_id=page_item.id %}" data-starred="{% if page_item.is_starred %}1{% else %}0{% endif %}" data-message-id="{{ page_item.id }}"><i class="star fa {% if page_item.is_starred %}fa-star{% else %}fa-star-o{% endif %}"></i></button>
+            <a href="{% mail_url 'read_mail' message_id=page_item.id starred=filters.starred read=filters.read has_attachments=filters.has_attachments %}" class="message--link">
+                {% if page_item.from_email %}
+                <span class="message--sender-name">{{ page_item.from_email }}</span>
+                {% endif %}
+                {% if page_item.subject %}
+                <span class="message--title">- {{ page_item.subject }}</span>
+                {% endif %}
+                <span class="pull-right">
+                    {% if page_item.has_attachments %}
+                    <span class="attachment fa fa-paperclip"></span>
+                    {% endif %}
+                    <span class="message--timestamp badge badge-pill badge-secondary">{{ page_item.date }}</span>
+                </span>
+            </a>
+        </div>
+    {% endfor %}
+</div> <!-- /messagelist -->
+<p class="num_messages">{{ page_obj.paginator.count|default:0 }} {% ifequal page_obj.paginator.count 1 %}message{% else %}messages{% endifequal %}</p>
+</form>
+{% endif %}{% endblock %}

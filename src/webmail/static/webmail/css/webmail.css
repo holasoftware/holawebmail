@@ -1,0 +1,682 @@
+html {
+    font-size: 14px;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+}
+
+#topbar .brand-link {
+    font-size: 20px;
+}
+
+@media (min-width: 768px) {
+    .w-md-auto {
+        width: auto !important;
+    }
+}
+
+
+#webmail {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+}
+
+#user-profile > a {
+    color: inherit;
+    position: relative;
+}
+
+#user-profile {
+    position: relative;
+    display: inline-block;
+    padding: 5px;
+}
+
+#user-profile .dropdown {
+    width: 100%;
+    position: absolute;
+    top: 100%;
+    padding: 5px;
+    margin-top: -5px;
+    overflow: hidden;
+    z-index: 1000000;
+    display: none;
+    background-color: white;
+    box-shadow: 0px 2px 4px 0px rgba(0,0,0,0.2);
+}
+
+.power-off {
+    margin-left: 5px; 
+    display: inline-block;
+
+}
+.power-off > a {
+    color: inherit;
+    text-decoration: none;
+}
+
+
+#searchboxinput {
+    width: 100%;
+    border-radius: 0;
+}
+
+#searchfilters-btn {
+    border-radius: 0;
+}
+
+#mobile-menu {
+    width: 220px;
+    padding: 15px;
+    display: block;
+    overflow: hidden;
+    border-right: 1px solid #ddd;
+}
+
+#webmail-interior {
+    height: 100%;
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#topbar {
+    position: relative;
+    display: block;
+    flex: 0 0 auto;
+}
+
+#topbar-inner {
+    padding: .5rem 0;
+    padding-bottom: 0;
+}
+
+#topbar-inner > .container {
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    -ms-flex-align: center;
+    align-items: center;
+    -ms-flex-pack: justify;
+    justify-content: space-between;
+}
+
+#topbar .brand {
+    display: inline-block;
+    padding-top: .3125rem;
+    padding-bottom: .3125rem;
+    margin-right: 1rem;
+    font-size: 1.25rem;
+    line-height: inherit;
+    white-space: nowrap;
+}
+
+#topbar .brand-link {
+    color: rgba(0,0,0,.9);
+    text-decoration: none;
+}
+
+#topbar .brand-link:hover {
+    text-decoration: none;
+}
+
+
+#topbar-inner > .container, #mainarea > .container {
+    max-width: 960px !important;
+}
+
+#mainarea {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    margin-top: 12px;
+}
+
+#mainarea > .container {
+    flex: 1 0 auto;
+}
+
+
+#content-area {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    padding-bottom: 20px;
+}
+
+#content-area h3 {
+    font-size: 19px;
+}
+
+#content-area h3.page-title {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+
+#content-area h4 {
+    font-size: 17px;
+}
+
+
+#content-area .content-area-footer {
+    margin-top: 20px;
+}
+
+/*
+#content-area .back-link-wrap {
+    text-align: right;
+}*/
+
+#content-area .go-back-wrap {
+    text-align: right;
+}
+
+
+/*
+.message.not-starred .star {
+    color: #d5d5d5;
+}*/
+
+#sidebar {
+    height: 100%;
+}
+
+#sidebar > .sidebar-item {
+    margin-bottom: 1rem !important;
+}
+
+
+#mobile-menu {
+    display: none;
+}
+
+
+.slideout-open #mobile-menu {
+    display: block;
+}
+
+#mobile-menu .folderlist, #sidebar .folderlist {
+    /*flex-grow: 1; */
+}
+
+#mobile-menu .folderlist > li.folder > a, #sidebar .folderlist > li.folder > a {
+    padding: 7px 10px;
+    border-bottom: 1px solid #e1e6ef;
+    color: #151b1e;
+}
+
+#mobile-menu .folderlist > li.folder > a.active, #sidebar .folderlist > li.folder > a.active {
+    padding: 7px 10px;
+    border: 0;
+    color: white;
+}
+
+#mobile-menu .folderlist > li.folder:last-child > a, #sidebar .folderlist > li.folder:last-child > a {
+    border-bottom: 0;
+}
+
+#mobile-menu .folderlist > li.folder > a:not(.active):hover, #sidebar .folderlist > li.folder > a:not(.active):hover {
+    background-color: #eee;
+}
+
+#mobile-menu .folderlist > li.folder > a .unreadcount, #sidebar .folderlist > li.folder > a .unreadcount {
+    position: relative;
+    top: 3px;
+}
+
+.folderlist .folder-icon {
+    margin-right: 6px;
+}
+
+
+#webmail[data-mbox-id] #webmail-management-links {
+    margin-top: 25px;
+}
+
+#webmail-management-links > ul {
+    margin: 0;
+}
+
+.quota-widget {
+    padding: 7px 10px;
+}
+
+.quota-widget .quota-graph {
+    display: flex;
+}
+
+.quota-widget .quota-bar {
+    flex-grow: 1;
+    height: 9px;
+    margin: 5px 5px 0 0;
+    background-color: #fff;
+    border: 1px solid #d4dbde;
+    border-radius: 3.5px;
+    overflow: hidden;
+}
+
+.quota-widget .quota-bar-value {
+    display: block;
+    background-color: #37beff;
+    height: 9px;
+    opacity: .75;
+}
+
+.quota-widget .quota-percentage {
+    color: #737677;
+    font-size: 13px;
+}
+
+.form .field-wrap {
+    position: relative;
+}
+
+.form .field-error {
+    color: darkred;
+}
+
+.form .input-password {
+    padding-right: 70px;
+}
+
+.form .input-password + .show-password-link {
+    position: absolute;
+    right: 20px;
+    top: 0.375rem;
+    text-decoration: none !important;
+}
+
+.form ul.errorlist {
+	padding-left: 0;
+	margin: 0;
+	color: firebrick;
+	list-style: none;
+	/* opacity: 0.8; */
+}
+
+.info-objects .object .object-field .object-field-label {
+
+}
+
+.info-objects .object .object-field .object-field-value {
+}
+
+.info-objects .object + .object {
+    margin-top: 20px;
+}
+
+.info-objects .object-edit-link {
+    margin-top: 5px;
+    display: inline-block;
+}
+
+.info-objects .object h4 {
+    font-weight: 600;
+    font-size: 16px !important;
+}
+
+#webmail[data-page='message'] #email-attachments {
+    margin-top:10px
+}
+
+#webmail[data-page='message'] #email-attachments .attachment-list {
+    list-style-type: none;
+    clear: all;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: -10px;
+    margin-right: -10px;
+    overflow: hidden;
+    padding: 0;
+}
+
+#webmail[data-page='message'] #email-attachments .attachment-list > .attachment-list-item {
+    float: left;
+    padding: 10px;
+}
+
+#webmail[data-page='compose'] #compose-title {
+    font-size: 1.3rem;
+    text-align: center;
+}
+
+#webmail[data-page='compose'] #compose-message-toolbar {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e1e6ef;
+}
+
+#webmail[data-page='compose'] #attachment-list-management > li + li {
+    margin-top: 10px;
+}
+
+.obj-list .table-obj-wrap {
+    padding: 20px 20px 0 20px
+}
+
+.obj-list .obj-list-controls {
+    margin-top: 20px;
+    margin-bottom: 14px;
+}
+
+.obj-list .obj-list-controls > .control {
+    font-size: 14px;
+}
+
+.mailbox-select-on-change {
+    font-size: 15px
+}
+
+
+
+ul.draft-list {
+    vertical-align: top
+}
+
+ul.draft-list > li + li {
+    margin-top: 12px;
+}
+
+ul.draft-list .draft-link {
+    display: block;
+    color: black;
+    vertical-align: top;
+ }
+
+ul.draft-list .draft-link:hover {
+    text-decoration: none;
+    /* darkblue, midnightblue */
+    color: darkblue;
+}
+
+.delete-draft-btn {
+    margin-top: 2px;
+    margin-left: -6px;
+    font-size: 19px;
+    padding: 2px 6px 2px 6px;
+}
+
+.delete-draft-btn:active {
+    padding: 1px 5px 1px 5px;
+    border: 1px solid rgb(76, 76, 76);
+    border-radius: 3px;
+}
+
+
+#webmail[data-page="folder"] .message-pagination > .message-pagination--page-range {
+    margin-right: 8px;
+}
+
+
+#webmail[data-page="folder"] #messagelist-controls:after {
+    clear: both;
+    content: "";
+    display: block;
+}
+
+#webmail[data-page="folder"] #messagelist-controls .btn.email_bulk_action + .dropdown-menu {
+    font-size: 15px;
+}
+
+
+#webmail[data-page="folder"] #email_bulk_action + .dropdown-menu > .dropdown-item {
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+
+#webmail[data-page="folder"] #messagelist > .message {
+    display: flex;
+}
+
+#webmail[data-page="folder"] #messagelist > .message.read {
+    color: #555;
+    background-color: white;
+}
+
+#webmail[data-page="folder"] #messagelist > .message.read:hover {
+    background-color: #f8f9fa;
+}
+
+#webmail[data-page="folder"] #messagelist > .message.unread {
+    color: #222;
+    background-color: #F3F3F3;
+}
+
+#webmail[data-page="folder"] #messagelist > .message.unread:hover {
+    background-color: antiquewhite;
+}
+
+#webmail[data-page="folder"] #messagelist > .message + .message {
+    border-top: 0;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .message--checkbox-container {
+    display: inline-block;
+    margin: 0px;
+    position: relative;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .message--sender-name {
+    /*min-width: 120px; */
+    display: inline-block;
+    /* color: darkslateblue; */
+    color: midnightblue;
+    margin-right: 5px;
+}
+
+
+#webmail[data-page="folder"] #messagelist > .message .star-btn {
+    cursor: pointer;
+	display: inline-block;
+    background: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    height: 20px;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .star {
+    display: inline-block;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .star:hover {
+    color: #f78a09;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .attachment {
+    display: inline-block;
+    margin-right: 5px;
+    font-size: 17px;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .message--timestamp {
+    font-size: 12px;
+}
+
+
+#webmail[data-page="folder"] #messagelist > .message .message--link {
+    color: inherit;
+    text-decoration: none !important;
+    display: inline-block;
+    flex-grow: 1;
+    padding-left: 10px;
+}
+
+#webmail[data-page="folder"] #messagelist > .message .message--excerpt {
+    font-size: 11px;
+}
+
+#webmail[data-page="folder"] #messagelist > .message input[name=obj_list] {
+    position: relative;
+    top: 1px;
+}
+
+#webmail[data-page="folder"] #mobile-menu .btn-compose {
+    display: none;
+}
+
+#webmail[data-page="folder"] .empty-folder {
+    display: inline-block;
+    font-size: 23px;
+    margin-top: 150px;
+}
+
+#webmail[data-page="folder"] .num_messages {
+    margin-top: 10px;
+    margin-bottom: 0;
+}
+
+
+#webmail[data-page="folder"] #filter_email + .filter-messages-menu {
+    font-size: 15px;
+}
+
+
+#webmail[data-page="folder"] #filter_email + .filter-messages-menu > .dropdown-item {
+    padding: 0.25rem 1.2rem;
+}
+
+
+#webmail[data-page="folder"] #filter_email + .filter-messages-menu > .dropdown-item:active {
+    color: inherit;
+}
+
+#webmail[data-page="folder"] #filter_email + .filter-messages-menu > .dropdown-item.active-filter {
+    /* bisque, gainsboro, lavender, linen */
+    background-color: bisque;
+}
+
+#webmail[data-page="folder"] #filter_email + .filter-messages-menu > .dropdown-item.not-active-filter {
+}
+
+
+#webmail[data-page="folder"] #search_text_filters.dropdown-menu > .dropdown-item {
+    padding: 0.25rem 1rem;
+}
+
+
+.dropdown-menu > .dropdown-item:hover {
+    /* aliceblue, lavender, whitesmoke */
+    background-color: whitesmoke;
+}
+
+#webmail[data-page="message"] .email_address {
+    /* navy; darkblue, mediumblue */
+    color: darkblue;
+    display: inline-block;
+}
+
+#webmail[data-page="message"] #email-header-data {
+    clear: both;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+
+#webmail[data-page="message"] #email-header-data .to {
+    display: inline-block;
+    margin-right: 2px;
+    margin-left: 2px;
+}
+
+#webmail[data-page="message"] #email-header-data .email-processed-time {
+    font-size: 14px;
+}
+
+#webmail[data-page="message"] #email-content {
+	display: block;
+	font-size: 90%;
+	color: #212529;
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+#webmail[data-page="message"] #mark_read {
+    background-color: yellow;
+    color: black;
+}
+
+#webmail[data-page="folder"] #check_all > input {
+    cursor: pointer
+}
+
+#webmail[data-page="compose"] #compose .delete-attachment-btn {
+    font-size: 16px;
+}
+
+#webmail[data-page="compose"] #compose .tagator_element {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+#webmail[data-page="compose"] #compose .tagator_tag, #webmail[data-page="compose"] #compose .tagator_input, #webmail[data-page="compose"] #compose .tagator_textlength, #webmail[data-page="compose"] #compose .tagator_placeholder {
+    font-size: 1rem;
+}
+
+#webmail[data-page="compose"] #compose .tagator_tag {
+    padding: 2px 20px 2px 6px;
+}
+
+#webmail[data-page="compose"] #compose .tagator_placeholder {
+    color: #6c757d;
+    opacity: 1;
+    top: 0.375rem;
+    /*left: 0.75rem;*/
+    left: 0.75rem;
+}
+
+#webmail[data-page="compose"] #compose .tagator_tag_remove {
+    padding-top: 9px;
+}
+
+#webmail[data-page="compose"] #compose .tagator_tag_remove:hover {
+    /*
+    color: darkslategray;
+    color: teal;
+    color: midnightblue:
+    */
+    color: midnightblue;
+}
+
+#webmail[data-page="compose"] #compose .tagator_element-focus {
+    color: #495057;
+    background-color: #fff;
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+#webmail[data-page="compose"] #compose .tagator_element-focus .tagator_placeholder {
+    display: none !important;
+}
+
+#webmail[data-page="compose"] #compose .tagator_input {
+    padding-top: 0;
+    height: 29px;
+}
+
+
+#webmail[data-page="email_headers"] .email-headers-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}

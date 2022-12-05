@@ -1,0 +1,98 @@
+
+:root {
+    --input-padding-x: 1rem;
+    --input-padding-y: 1rem;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+.public-form-wrap {
+    height: 100%;
+    width: 100%;
+    display: -ms-flexbox;
+    display: -webkit-box;
+    display: flex;
+    -ms-flex-align: center;
+    -ms-flex-pack: center;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    padding-top: 40px;
+    padding-bottom: 40px;
+}
+
+.public-form {
+    width: 100%;
+    max-width: 420px;
+    padding: 15px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.public-form .field {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+
+.public-form .field input::-webkit-input-placeholder {
+    color: #495057;
+}
+
+.public-form .field input:-ms-input-placeholder {
+    color: #495057;
+}
+
+.public-form .field input::-ms-input-placeholder {
+    color: #495057;
+}
+
+.public-form .field input::-moz-placeholder {
+    color: #495057;
+}
+
+.public-form .field input::placeholder {
+    color: #495057;
+}
+
+/*
+.public-form #logo {
+    position: absolute;
+    left: 50%;
+    transform: translateY;
+    transform: translateY(-100%) translateX(-50%);
+}*/
+
+.public-form #logo-wrap {
+    text-align: center;
+}
+
+.public-form #logo {
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+
+
+.public-form .field .field-error {
+    color: red;
+    margin-top: 10px;
+}
+
+.error {
+    color: red;
+}
+
+.centered-box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translateY(-50%) translateX(-50%);
+    margin: 0;
+    padding: 0;
+}
+

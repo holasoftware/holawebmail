@@ -1,0 +1,34 @@
+{% load i18n utils %}
+
+<div class="form-group row">
+    <label class="control-label col-md-3">{{ field.label }}</label>
+    <div class="col-md-7">
+        {% ifequal field.field.widget.input_type 'checkbox' %}
+            <div class="field-wrap form-check">
+            {% if field.errors %}
+                {{ field | add_class_name:'form-check-input' | add_class_name:'is-invalid' | safe }}
+            {% else %}
+                {{ field | add_class_name:'form-check-input' | safe }}
+            {% endif %}
+            </div>
+        {% else %}
+            <div class="field-wrap">
+            {% ifequal field.field.widget.input_type 'password' %}
+            {% if field.errors %}
+                {{ field | add_class_name:'form-control' | add_class_name:'input-password' | add_class_name:'is-invalid' | safe }}
+            {% else %}
+                {{ field | add_class_name:'form-control' | add_class_name:'input-password' | safe }}
+            {% endif %}
+            <a href="#" class="show-password-link">{% trans "Show" %}</a>
+            {% else %}
+            {% if field.errors %}
+                {{ field | add_class_name:'form-control' | add_class_name:'is-invalid' | safe }}
+            {% else %}
+                {{ field | add_class_name:'form-control' | safe }}
+            {% endif %}
+            {% endifequal %}
+            </div>
+        {% endifequal %}
+        {{ field.errors }}
+    </div>
+</div>

@@ -1,0 +1,173 @@
+{% load webmail static i18n %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="icon" href="{% static 'images/email.ico' %}"> 
+    <title>{{ html_head_title }}</title>
+
+    
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="{% static 'webmail/lib/bootstrap/css/bootstrap.css' %}">
+    <link rel="stylesheet" href="{% static 'webmail/css/public.css' %}">
+
+    <script type="text/javascript" src="{% static 'webmail/js/srp_defaults.js' %}"></script>
+
+    <script type="text/javascript" src="{% static 'webmail/lib/jquery/jquery-3.4.1.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/jsbn.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/jsbn2.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/SHA256.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/SHA1.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/MD5.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/random.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/isaac.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/js/srp-client.js' %}"></script>
+
+
+    <script type="text/javascript" src="{% static 'webmail/js/password-revealer.js' %}"></script>
+    <style>
+        {% if background_color %}
+        body {
+            background-color: {{ background_color }};
+        }
+        {% endif %}
+    </style>
+</head>
+
+<body class="public-page login-page">
+    <div class="public-form-wrap">
+        <div class="public-form form-signin">
+            <form id="login-form" method="POST">
+                {% if logo_image_url %}
+                <div id="logo-wrap">
+                    <div id="logo">
+                        <img src="{% static logo_image_url %}" alt="{{ logo_alt }}"{% if logo_width %} width="{{ logo_width }}"{% endif %}{% if logo_height %} height="{{ logo_height }}"{% endif %}>
+                    </div>
+                </div>
+                {% endif %}
+                <h1 class="h3 mb-3 font-weight-normal">{{ title }}</h1>
+
+                <div id="username_field" class="field">
+                    <input type="text" id="input_username" name="username"{% if username %} value="{{ username }}"{% endif %} class="form-control" placeholder="Username" required autofocus>
+                    
+                </div>
+
+                <div id="password_field" class="field" style="position: relative">
+                    <input type="password" id="input_password" name="password" class="form-control" placeholder="Password" required style="padding-right: 70px;">
+                    <a href="#" id="show-password-link" style="position: absolute; right: 20px; top: 0.375rem;">Show</a>
+                </div>
+
+                <p id="login-error" class="error" style="display:none"></p>
+
+                <button class="btn btn-lg btn-primary btn-block" type="submit">{% trans 'Sign in' %}</button>
+            </form>
+            <br><br>
+            <a href="{% mail_url 'signup' %}">{% trans 'Create an account' %}</a>
+        </div>
+    </div>
+<script>
+    var passwordRevealer = new PasswordRevealer("#input_password", "#show-password-link", {
+        onTriggerAction: function(isRevealed, toggleEl){
+            var toggleText;
+
+            if (isRevealed){
+                toggleText = "{% trans 'Hide' %}";
+            } else {
+                toggleText = "{% trans 'Show' %}";
+            }
+
+            toggleEl.innerText = toggleText;
+        }
+    })
+
+    passwordRevealer.init();
+
+    var $loginForm = $('#login-form');
+    var INVALID_LOGIN_ERROR_CODE = "invalid_login";
+
+    var $errorEl = $("#login-error");
+
+    var show_login_error = function(msg){
+        $errorEl.html(msg);
+        $errorEl.show();
+    }
+
+    var hide_login_error = function(){
+        $errorEl.hide();
+    }
+
+    var invalid_login = function(){
+        show_login_error("Invalid login!");
+    }
+
+    $loginForm.on('submit', function(e) {
+      e.preventDefault();
+
+      hide_login_error();
+
+      var username = $loginForm.find("#input_username").val();
+      var password = $loginForm.find("#input_password").val();
+
+      if (username === ""){
+        show_login_error("Username can not be empty!");
+        return;
+      }
+
+      if (password === ""){
+        show_login_error("Password can not be empty!");
+        return;
+      }
+
+      var srp = new SRPClient(username, password, DEFAULT_SRP_GROUP, DEFAULT_SRP_HASH_FN);
+
+      // 1. The client generates and stores A.
+      var a = srp.startAuthentication();
+
+      // 2. The client sends username and A to the server.
+      $.post('{% url "webmail:login_srp_challenge" %}', {
+        "csrfmiddlewaretoken": "{{csrf_token}}",
+        "I": username,
+        "A": srp.A.toString(16)
+      }, function (response) {
+        // 3. The server receives A and generates B.
+        if (response.ok) {
+          var data = response.data;
+
+          var bHex = data.B;
+          var s = data.s;
+
+          var mHex = srp.processChallenge(bHex, s);
+
+          $.post('{% url "webmail:login_srp_verify_proof" %}', {
+            "csrfmiddlewaretoken": "{{csrf_token}}",
+            "M": mHex
+          }, function(response){
+            if (response.ok) {
+                if (response.data && response.data.H_AMK && srp.verifySession(response.data.H_AMK)) {
+                    document.location.href = "{% mail_url 'init' %}";
+                } else {
+                    invalid_login();
+                }
+            } else {
+                if (response.error_code === INVALID_LOGIN_ERROR_CODE)
+                    invalid_login();
+            }
+          });
+
+
+        } else {
+            if (response.error_code === INVALID_LOGIN_ERROR_CODE)
+                invalid_login();
+        }
+      }, 'json');
+    });
+    {% if username %}
+    $("#input_password").focus()
+    {% endif %}
+</script>
+</body>
+
+</html>
+

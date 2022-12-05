@@ -1,0 +1,83 @@
+{% extends "webmail/base.html" %}
+{% load static webmail i18n %}
+
+{% block content_area %}
+<div id="message" data-message-id="{{ message.id }}">
+    <div class="message-controls mb-3 overflow-hidden">
+        <div class="btn-group">
+            <a class="btn btn-outline-secondary btn-sm" href="{% mail_url 'reply' message_id=message.id %}"><span class="fa fa-mail-reply"></span><span class="d-md-inline d-none"> {% trans "Reply" %}</span></a>
+            <a class="btn btn-outline-secondary btn-sm" href="{% mail_url 'reply_all' message_id=message.id %}"><span class="fa fa-mail-reply-all"></span><span class="d-md-inline d-none"> {% trans "Reply all" %}</span></a>
+            <a class="btn btn-outline-secondary btn-sm" href="{% mail_url 'forward_email' message_id=message.id %}"><span class="fa fa-mail-forward"></span><span class="d-md-inline d-none"> {% trans "Forward" %}</span></a>
+        </div>
+            
+        <input type="hidden" name="message_id" value="{{ message.id }}">
+
+        <button id="mark_unread" data-url="{% mail_url 'mark_as_unread' message_id=message.id %}" class="btn btn-outline-secondary btn-sm"><span class="fa fa-envelope-o"></span><span class="d-md-inline d-none"> {% trans "Mark unread" %}</span></button>
+        <button id="mark_read" data-url="{% mail_url 'mark_as_read' message_id=message.id %}" class="btn btn-outline-secondary btn-sm" style="display:none"><span class="fa fa-envelope"></span><span class="d-md-inline d-none"> {% trans "Mark read" %}</span></button>
+        {% if message.is_good_received_mail %}
+        <form action="{% mail_url 'mark_as_spam' message_id=message.id %}" method="POST" style="display: inline-block">
+        {% csrf_token %}
+        <button id="mark_spam" class="btn btn-outline-secondary btn-sm"><span class="fa fa-ban"></span><span class="d-md-inline"> {% trans "Spam" %}</span></button>
+        </form>
+        {% endif %}
+        {% if message.is_junk %}
+        <form action="{% mail_url 'mark_as_not_junk' message_id=message.id %}" method="POST" style="display: inline-block">
+        {% csrf_token %}
+        <button id="mark_not_junk" class="btn btn-outline-secondary btn-sm"><span class="fa fa-check"></span><span class="d-md-inline"> {% trans "Good mail" %}</span></button>{# Move to inbox #}
+        </form>
+        {% endif %}
+        <button class="btn btn-outline-secondary btn-sm star-btn" data-star-url="{% mail_url 'add_star' message_id=message.id %}" data-unstar-url="{% mail_url 'remove_star' message_id=message.id %}" data-starred="{% if message.is_starred %}1{% else %}0{% endif %}" data-message-id="{{ message.id }}"><i class="star fa {% if message.is_starred %}fa-star{% else %}fa-star-o{% endif %}"></i></button>
+        <form action="{% mail_url 'mail_delete' message_id=message.id %}" method="POST" style="display: inline-block">
+        {% csrf_token %}
+        <button class="btn btn-outline-secondary btn-sm"><span class="fa fa-trash-o"></span></button>
+        {% if show_export_mail_btn %}
+        <a href="{% mail_url 'export_mail' message_id=message.id %}" class="btn btn-outline-secondary btn-sm">{% trans "Export" %}</a>
+        {% endif %}
+        {% if show_email_headers_btn %}
+        <a href="{% mail_url 'email_headers' message_id=message.id %}" class="btn btn-outline-secondary btn-sm">{% trans "Headers" %}</a>
+        {% endif %}
+        {# <a href="#" class="btn btn-outline-secondary btn-sm">{% trans "Export" %}</a> #}
+        </form>
+        <a class="pull-right" href="{{ back_page_url }}">{% trans "Back" %}</a>
+    </div> <!-- /header -->
+
+    <div class="card">
+        <div class="card-body">
+            <div id="email">
+                <h4 id="email-title">{{ message.subject }}</h4>
+
+                <div id="email-header-data">
+                    {% if sender.me %}<strong class="me">{% trans "me" %}</strong>{% elif sender.name %}<strong class="name">{{ sender.name }}</strong> <a href="{% mail_url 'compose' to=sender.address %}" class="email_address from_email">[{{ sender.address }}]</a>{% else %}<a href="{% mail_url 'compose' to=sender.address %}" class="email_address from_email">{{ sender.address }}</a>{% endif %}
+                    <span class="to">{% trans "to" %}</span>
+                    {% for receiver in receivers %}{% if not forloop.first %}, {% endif %}{% if receiver.me %}<strong class="me">{% trans "me" %}</strong>{% elif receiver.name %}<a href="{% mail_url 'compose' to=receiver.address %}" data-email="{{ receiver.address }}" class="email_address to_email"><strong class="name">{{ receiver.name }}</strong> <span class="email_address to_email">[{{ receiver.address }}]</span></a>{% else %}<a href="{% mail_url 'compose' to=receiver.address %}" class="email_address to_email">{{ receiver.address }}</a>{% endif %}{% endfor %}
+                    {% if secondary_receivers %}<a class="secondary-receivers-dropdown dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></a>
+                    <div class="dropdown-menu" aria-labelledby="secondary_receivers">
+                        {% for receiver in secondary_receivers %}
+                        <span class="dropdown-item">{% if receiver.me %}<strong class="me">{% trans "me" %}</strong>{% elif receiver.name %}<a href="{% mail_url 'compose' to=receiver.address %}" class="email_address cc_email"><strong class="name">{{ receiver.name }}</strong> [{{ receiver.address }}]</a>{% else %}<a href="{% mail_url 'compose' to=receiver.address %}" class="email_address cc_email">{{ receiver.address }}</a>{% endif %}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <span class="pull-right time email-processed-time"> {{ message.date }}</span>
+                </div>
+                {# <pre id="email-content">{{ message.text_plain | wordwrap:90 }}</pre> #}
+                <div id="email-content">{{ message.text_plain }}</div>
+
+                {% if message.has_attachments %}
+                <div id="email-attachments">
+                    <p><span><i class="fa fa-paperclip"></i> {{ message.attachments.count }} attachment/s — </span>
+                    <ul class="attachment-list">
+                        {% for attachment in message.attachments.all %}
+                        <li class="attachment-list-item">
+                            <div class="file-name">{{ attachment.file_name }}</div>
+                            <span>{{ attachment.file.size | filesizeformat }}</span>
+                            <div class="links"><a href="{% mail_url 'get_attachment' message_id=message.id attachment_id=attachment.id %}">{% trans "Download" %}</a></div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div> <!-- /email-attachments -->
+                {% endif %}
+            </div>
+       </div>
+    </div> <!-- /card -->
+</div>
+{% endblock %}

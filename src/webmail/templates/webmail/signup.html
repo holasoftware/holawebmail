@@ -1,0 +1,137 @@
+{% load static i18n %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="icon" href="{% static 'images/email.ico' %}">
+    <title>{{ html_head_title }}</title>
+
+    
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="{% static 'webmail/lib/bootstrap/css/bootstrap.css' %}">
+    <link rel="stylesheet" href="{% static 'webmail/css/public.css' %}">
+
+    <script type="text/javascript" src="{% static 'webmail/lib/jquery/jquery-3.4.1.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/jsbn.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/jsbn2.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/SHA256.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/SHA1.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/MD5.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/random.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/isaac.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/js/srp_defaults.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/js/srp-client.js' %}"></script>
+
+    <style>
+        form .field-error {
+            color: red;
+        }
+
+        {% if background_color %}
+        body {
+            background-color: {{ background_color }};
+        }
+        {% endif %}
+    </style>
+</head>
+
+<body class="public-page">
+    <div class="public-form-wrap">
+        <div class="public-form form-signup">
+            <form id="register-form" method="POST">
+                {% csrf_token %}
+                {% if logo_image_url %}
+                <div id="logo-wrap">
+                    <div id="logo">
+                        <img src="{% static logo_image_url %}" alt="{{ logo_alt }}"{% if logo_width %} width="{{ logo_width }}"{% endif %}{% if logo_height %} height="{{ logo_height }}"{% endif %}>
+                    </div>
+                </div>
+                {% endif %}
+                <h1 class="h3 mb-3 font-weight-normal">{{ title }}</h1>
+
+                <div class="field">
+                    <input type="text" id="input_username" name="username" class="form-control" placeholder="{% trans 'Username' %}" required autofocus>
+                    
+                </div>
+
+                <div class="field">
+                    <input type="password" id="input_password" name="password" class="form-control" placeholder="{% trans 'Password' %}" required>
+                </div>
+
+                <div class="field">
+                    <input type="password" id="input_passwordconfirm" name="passwordconfirm" class="form-control" placeholder="{% trans 'Confirm Password' %}" required>
+                </div>
+                <button class="btn btn-lg btn-primary btn-block" type="submit">{% trans 'Sign Up' %}</button>
+            </form>
+            <br><br>
+            <a href="{% url 'webmail:login' %}">{% trans 'Return to login' %}</a>
+        </div>
+    </div>
+
+    <script>
+      $(function () {
+       /*
+        var rng = new SecureRandom();
+
+        // some 16 byte random number
+        var randomSalt = function() {
+            var salt = new BigInteger(64, rng);
+            return zeroPrefix(salt.toString(16));
+        }*/
+
+        var $registerForm = $('#register-form');
+        $registerForm.on('submit', function (e) {
+
+          $registerForm.find('.field-error').remove();
+
+          var username = $registerForm.find("#input_username").val();
+          var password = $registerForm.find("#input_password").val();
+
+          var csrfmiddlewaretoken = $registerForm.find("input[name=csrfmiddlewaretoken]").val();
+
+          var $passwordConfirm = $registerForm.find("#input_passwordconfirm");
+
+          if (password !== $passwordConfirm.val()) {
+              $passwordConfirm.after("<p class='field-error'>Password doesn't match!</p>");
+              return false;
+          }
+
+          var srp = new SRPClient(username, password, DEFAULT_SRP_GROUP, DEFAULT_SRP_HASH_FN);
+          var salt = srp.randomHexSalt();
+          var verifier = srp.calculateV(salt).toString(16);
+          //var fields = $registerForm.serializeArray();
+
+          $.post("{% url 'webmail:signup_upload_srp_params'%}", {
+            "username": username,
+            "csrfmiddlewaretoken": csrfmiddlewaretoken,
+            "salt": salt,
+            "srp_group": DEFAULT_SRP_GROUP,
+            "verifier": verifier
+          }, function (response) {
+            if (response.ok) {
+              $(document.body).html("<div class='centered-box'><p>User <b>" + username + "</b> already registered!</p><a href='{% url 'webmail:login' %}?username=" + username + "'>Go to login</a></div>");
+            } else {
+              if (response.error_code === "form_errors") {
+                Object.entries(response.error_other_data).forEach(function(entry){
+                    var fieldName = entry[0];
+                    var fieldErrorMsg = entry[1];
+
+                    $("#input_"+fieldName).after("<p class='field-error'>" + fieldErrorMsg + "</p>");
+                });
+              }
+              
+              //$('#register-output').html(response.error);
+              //$('#register-output').html("User registerd with id: " + response['user-id']);
+            }
+          }, 'json');
+
+          return false;
+        });
+      });
+    </script>
+</body>
+
+</html>
+

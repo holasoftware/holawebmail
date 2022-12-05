@@ -1,0 +1,16 @@
+{% extends "webmail/base.html" %}
+{% load webmail i18n %}
+
+{% block content_area %}
+<div id="headers">
+<h4>Email headers for message <a style="color:black" href="{% mail_url 'read_mail' message_id=message_id %}"><b>{{ message_id }}</b></a></h4><br>
+<ul class="email-headers-list">
+{% for field_name, field_value in email_headers %}
+<li><b>{{ field_name }}: </b> {{ field_value }}</li>
+{% endfor %}
+</ul>
+</div>
+
+<a href="{% mail_url 'read_mail' message_id=message_id %}" class="pull-right">{% trans "Back to message" %}</a>
+{% endblock %}
+

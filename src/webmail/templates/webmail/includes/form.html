@@ -1,0 +1,43 @@
+{% load i18n utils %}
+
+
+<form id="{{ form_id }}"{% if action_url %} action="{{ action_url }}"{% endif %} method="POST" class="form form-horizontal{% if form_css_class %} {{ form_css_class }}{% endif %}">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger alert-dismissible" role="alert">
+        <button class="close" type="button" data-dismiss="alert" aria-label="{% trans 'close' %}">&#215;</button>
+        {% for error in form.non_field_errors %}
+            {{ error }}{% if not forloop.last %}<br>{% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% for field in form %}
+    {% include "webmail/includes/form_field.html" with field=field only %}
+    {% endfor %}
+    {% if form.extra_forms %}
+        {% for extra_form in  form.extra_forms %}
+            {% for field in extra_form %}
+            {% include "webmail/includes/form_field.html" with field=field only %}
+            {% endfor %}
+        {% endfor %}
+    {% endif %}
+    <div class="row">
+        <div class="form-error offset-md-3 col-md-7"></div>
+    </div>
+
+    <div class="form-footer" style="margin-top: 10px;">
+        {% if form_footer_top %}
+        {{ form_footer_top | safe }}
+        {% endif %}
+        <div class="row">
+            <div class="col-12 col-md-offset-3">
+                <button class="btn btn-primary btn-sm" type="submit"><i class="fa fa-fw fa-lg fa-check-circle"></i>{% trans "Submit" %}</button>{% if form.instance and delete_url %}&nbsp;&nbsp;&nbsp;<button form="delete_{{ form_id }}" class="btn btn-secondary btn-sm"><i class="fa fa-fw fa-lg fa-times-circle"></i>{% trans "Delete" %}</button>{% endif %}{% if after_form_buttons %}{{ after_form_buttons | safe }}{% endif %}
+            </div>
+        </div>
+        {% if form_footer_bottom %}
+        {{ form_footer_bottom | safe }}
+        {% endif %}
+    </div>
+</form>
+{% if form.instance and delete_url %}<form id="delete_{{ form_id }}" action="{{ delete_url }}" method="POST">{% csrf_token %}</form>{% endif %}

@@ -1,0 +1,111 @@
+{% extends "webmail/base.html" %}
+{% load webmail static i18n %}
+
+{% block content_area %}
+<div id="compose">
+    {% if top_compose %}
+    {{ top_compose | safe }}
+    {% endif %}
+    <h3 id="compose-title">{% trans "New Message" %}</h3>
+    {% if before_form_message %}
+    {{ before_form_message | safe }}
+    {% endif %}
+    <form id="form-message">
+        {% if in_reply_to %}
+        <input type="hidden" name="in_reply_to" value="{{ in_reply_to }}">
+        {% endif %}
+        <div id="compose_headers">
+            <div id="compose_subject" class="form-row mb-3">
+                <label for="subject" class="col-2 col-sm-1 col-form-label">{% trans "Subject:" %}</label>
+                <div class="col-10 col-sm-11"> <input id="subject" type="text" name="subject"{% if subject %} value="{{ subject }}"{% endif %} class="form-control"></div>
+            </div>
+            <div id="compose_to" class="form-row mb-3">
+                <label for="to" class="col-2 col-sm-1 col-form-label">{% trans "To:" %}</label>
+                <div class="col-10 col-sm-11"> <input id="to" type="email" name="to"{% if to %} value="{{ to }}"{% endif %} class="form-control" placeholder="{% trans 'Type email' %}"></div>
+            </div>
+            {% if show_cc %}
+            <div id="compose_cc" class="form-row mb-3">
+                <label for="cc" class="col-2 col-sm-1 col-form-label">{% trans "CC:" %}</label>
+                <div class="col-10 col-sm-11"> <input id="cc" type="email" name="cc"{% if cc %} value="{{ cc }}"{% endif %} class="form-control" placeholder="{% trans 'Type email' %}"></div>
+            </div>
+            {% endif %}
+            {% if show_bcc %}
+            <div id="compose_bcc" class="form-row mb-3">
+                <label for="bcc" class="col-2 col-sm-1 col-form-label">{% trans "BCC:" %}</label>
+                <div class="col-10 col-sm-11"> <input id="bcc" type="email" name="bcc"{% if bcc %} value="{{ bcc }}"{% endif %} class="form-control" placeholder="{% trans 'Type email' %}"></div>
+            </div>
+            {% endif %}
+        </div>
+        <div id="compose_content">
+            <div class="row">
+                <div class="col-sm-11 ml-auto">
+                    {% comment %}
+                    <div id="compose-message-toolbar" class="btn-toolbar" role="toolbar" style="display:none" data-role="editor-toolbar" data-target="#editor">
+                        <div class="btn-group"> <button type="button" class="btn btn-light"> <span class="fa fa-bold"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-italic"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-underline"></span> </button></div>
+                        <div class="btn-group"> <button type="button" class="btn btn-light"> <span class="fa fa-align-left"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-align-right"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-align-center"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-align-justify"></span> </button></div>
+                        <div class="btn-group"> <button type="button" class="btn btn-light"> <span class="fa fa-indent"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-outdent"></span> </button></div>
+                        <div class="btn-group"> <button type="button" class="btn btn-light"> <span class="fa fa-list-ul"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-list-ol"></span> </button></div> <button type="button" class="btn btn-light"> <span class="fa fa-trash-o"></span> </button> <button type="button" class="btn btn-light"> <span class="fa fa-paperclip"></span> </button>
+                        <div class="btn-group"> <button type="button" class="btn btn-light dropdown-toggle" data-toggle="dropdown"> <span class="fa fa-tags"></span> <span class="caret"></span> </button>
+                            <div class="dropdown-menu"> <a class="dropdown-item" href="#">add label <span class="badge badge-danger"> Home</span></a> <a class="dropdown-item" href="#">add label <span class="badge badge-info"> Job</span></a> <a class="dropdown-item" href="#">add label <span class="badge badge-success"> Clients</span></a> <a class="dropdown-item" href="#">add label <span class="badge badge-warning"> News</span></a></div>
+                        </div>
+                    </div>
+                    {% endcomment %}
+                    <div class="form-group mt-3">
+                        <div id="editor">
+                            <textarea class="form-control" id="editor-textarea" name="body" rows="12" placeholder="Click here to reply">{% if body %}{{ body }}{% endif %}</textarea>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div id="attachments-list-form-area" class="d-none">
+                            <b>{% trans "Attachments:" %}</b>
+                            <ul id="attachment-list-management"></ul>
+                        </div>
+                        <ul class="errorlist"></ul>
+                        <!-- {% csrf_token %} -->
+                        <label class="control-label" for="attachment_file_input">{% trans "Add attachment" %}</label>
+                        <input class="form-control-file" style="display: inline-block; width: auto" id="attachment_file_input" type="file" aria-describedby="fileHelp" form="attachment_form"><!--<small class="form-text text-muted" id="fileHelp">This is some placeholder block-level help text for the above input. It's a bit lighter and easily wraps to a new line.</small>-->
+                    </div>
+                    <div class="form-group">
+                        {% if send_mail_enabled %}
+                        <button id="send_email_btn" class="btn btn-success">{% trans "Send" %}</button>
+                        {% endif %}
+                        {% if other_buttons %}
+                        {% for button in other_buttons %}
+                        <button{% if button.id %} id="{{ button.id }}"{% endif %} class="btn{% if button.css_class %} {{ button.css_class }}{% endif %}">{{ button.text }}</button>
+                        {% endfor %}
+                        {% endif %} 
+                        <button id="draft_btn" class="btn btn-light">{% trans "Draft" %}</button> 
+                        <button id="discard_btn" data-url="{% mail_url 'show_folder' folder_name='inbox' %}" class="btn btn-danger">{% trans "Discard" %}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div> <!-- /compose -->
+<form id="attachment_form"></form>
+{% endblock %}
+
+{% block before_end_body %}
+{{ block.super }}
+<div id="restore-draft-modal" class="modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{% trans "Restore draft" %}</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>{% trans "There is a draft saved at " %} <span class="time"></span>. {% trans "Do you want to restore?" %}</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="restore-draft-modal-clear-draft-btn btn btn-secondary">{% trans "Clear draft" %}</button>
+        <button type="button" class="restore-draft-modal-no-btn btn btn-secondary" data-dismiss="modal">{% trans "No" %}</button>
+        <button type="button" class="restore-draft-modal-yes-btn btn btn-primary">{% trans "Yes" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -1,0 +1,105 @@
+{% extends "webmail/model_form.html" %}
+{% load webmail i18n static %}
+
+
+{% block before_end_body %}
+    <script type="text/javascript" src="{% static 'webmail/lib/jsbn.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/jsbn2.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/SHA256.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/SHA1.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/MD5.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/random.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/lib/isaac.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/js/srp_defaults.js' %}"></script>
+    <script type="text/javascript" src="{% static 'webmail/js/srp-client.js' %}"></script>
+
+    <script>
+    (function(){
+        function calculateNewSaltAndVerifier(username, password){
+          var srp = new SRPClient(username, password, DEFAULT_SRP_GROUP, DEFAULT_SRP_HASH_FN);
+          var salt = srp.randomHexSalt();
+          var verifier = srp.calculateV(salt).toString(16);
+
+          return {
+            "salt": salt,
+            "verifier": verifier
+          }
+        }
+
+        var form = new Form('#profile_form');
+        var INVALID_PASSWORD_ERROR_CODE = "invalid_password";
+
+        var invalid_password = function(){
+            form.showError("Invalid login!");
+        }
+
+        form.onSubmit(function() {
+          var new_username = this.fieldValue("username");
+
+          if (new_username === ""){
+            this.showFieldError("username", '{% trans "Username is required!" %}');
+            return;
+          }
+
+          var password = this.fieldValue("password");
+
+          if (password === ""){
+            this.showFieldError("password", '{% trans "Password is a required parameter!" %}');
+            return;
+          }
+
+          var newSaltAndVerifier = calculateNewSaltAndVerifier(new_username, password);
+          var srp = new SRPClient(USER.username, password, DEFAULT_SRP_GROUP, DEFAULT_SRP_HASH_FN);
+
+          // 1. The client generates and stores A.
+          var a = srp.startAuthentication();
+
+          // 2. The client sends username and A to the server.
+          $.post('{% url "webmail:change_username_step1" %}', {
+            "csrfmiddlewaretoken": csrfmiddlewaretoken,
+            "A": srp.A.toString(16),
+            "username": new_username,
+            "srp_group": DEFAULT_SRP_GROUP,
+            "salt": newSaltAndVerifier.salt,
+            "verifier": newSaltAndVerifier.verifier
+          }, function (response) {
+            // 3. The server receives A and generates B.
+            if (response.ok) {
+              var data = response.data;
+
+              var bHex = data.B;
+              var s = data.s;
+
+              var mHex = srp.processChallenge(bHex, s);
+
+              $.post('{% url "webmail:change_username_step2" %}', {
+                "csrfmiddlewaretoken": csrfmiddlewaretoken,
+                "M": mHex
+              }, function(response){
+                if (response.ok) {
+                    if (response.data && response.data.H_AMK && srp.verifySession(response.data.H_AMK)) {
+                          window.location.reload();
+                    } else {
+                        invalid_password();
+                    }
+                } else {
+                    if (response.error_code === INVALID_PASSWORD_ERROR_CODE)
+                        invalid_password();
+                }
+              });
+            } else {
+                if (response.error_code === INVALID_PASSWORD_ERROR_CODE){
+                    invalid_password();
+                } else if (response.error_code === FORM_ERROR_CODE){
+                    Object.keys(response.error_data).forEach(function(fieldName){
+                        response.error_data[fieldName].forEach(function(errorMessage){
+                            form.showFieldError(fieldName, errorMessage)
+                        });
+                    });
+                }
+            }
+          }, 'json');
+        });
+    })();
+    </script>
+{% endblock %}

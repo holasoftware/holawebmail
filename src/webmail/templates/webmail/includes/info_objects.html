@@ -1,0 +1,20 @@
+{% load i18n %}
+{% if data.objects %}
+<div class="info-objects">
+{% for object in data.objects %}
+<div class="object">
+<h4>{{ object.title }}</h4>
+<div class="object-field-list">
+    {% for field in object.fields %}
+    <div class="object-field">
+        <span class="object-field-label">{{ field.label }}: </span> <span class="object-field-value">{{ field.value }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% if object.edit_url %}
+<a class="object-edit-link" href="{{ object.edit_url }}">{% trans "Edit" %}</a>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+{% endif %}
