@@ -680,3 +680,16 @@ ul.draft-list .draft-link:hover {
     margin: 0;
     padding: 0;
 }
+
+#webmail[data-page="control_sessions"] .other_sessions {
+    margin-top:30px
+}
+
+#webmail[data-page="control_sessions"] .other_sessions > .table {
+    margin:20px auto 0 auto;
+    width: auto
+}
+
+#webmail[data-page="control_sessions"] .other_sessions > .delete-other-sessions {
+    margin-top:20px
+}

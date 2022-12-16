@@ -1,0 +1,35 @@
+{% extends "webmail/base.html" %}
+{% load webmail utils i18n %}
+
+
+{% block content_area %}
+    <h3 class="page-title">{% trans "Control sessions" %}</h3>
+
+    <div class="current-session">
+        <b>{% trans "Session:" %}</b> {{ current_session.uuid }}<br>
+    </div>
+
+    {% if other_sessions %}
+    <div class="other_sessions">
+        <h4>{% trans "Other sessions:" %}</h4>
+        <table class="table">
+            <thead>
+                <th>UUID</th><th>{% trans "Last activity" %}</th>
+            </thead>
+            <tbody>
+            {% for session in other_sessions %}
+            <tr>
+                <td>{{ session.uuid }}</td><td>{{ session.last_activity }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div class="delete-other-sessions">
+            <form action="{% mail_url 'delete_other_sessions' %}" method="POST">
+                {% csrf_token %}
+                <button class="btn btn-primary">{% trans "Delete all other sessions" %}</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}

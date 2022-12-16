@@ -181,39 +181,6 @@ function compose_page_init(data){
     }
 
 
-    // using jQuery
-    function getCookie(name) {
-        var cookieValue = null;
-        if (document.cookie && document.cookie != '') {
-            var cookies = document.cookie.split(';');
-            for (var i = 0; i < cookies.length; i++) {
-                var cookie = jQuery.trim(cookies[i]);
-                // Does this cookie string begin with the name we want?
-                if (cookie.substring(0, name.length + 1) == (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    // Usar la variable 'CSRF_MIDDLEWARE_TOKEN' ??
-    var csrftoken = getCookie('csrftoken');
-
-    function csrfSafeMethod(method) {
-        // these HTTP methods do not require CSRF protection
-        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
-    }
-
-    $.ajaxSetup({
-        beforeSend: function(xhr, opts) {
-            if (!csrfSafeMethod(opts.type) && !this.crossDomain) {
-                xhr.setRequestHeader("X-CSRFToken", csrftoken);
-            }
-        }
-    });
-
     $(function(){
         var fileId = 0;
         var attachments = [];
@@ -328,7 +295,7 @@ function compose_page_init(data){
             };
 
             xhr.open('POST', opts.url, true);            
-            xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            xhr.setRequestHeader("X-CSRFToken", CSRF_MIDDLEWARE_TOKEN);
             xhr.send(formData);
         };
 
@@ -434,7 +401,7 @@ function compose_page_init(data){
                                 }
 
                                 xhr.open('POST', data.finnished_attachments_session_url, true);            
-                                xhr.setRequestHeader("X-CSRFToken", csrftoken);
+                                xhr.setRequestHeader("X-CSRFToken", CSRF_MIDDLEWARE_TOKEN);
                                 xhr.send(null);
                             },
                             onUploadAttachmentError: console.log
@@ -448,7 +415,7 @@ function compose_page_init(data){
             };
 
             xhr.open('POST', data.mail_send_url, true);
-            xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            xhr.setRequestHeader("X-CSRFToken", CSRF_MIDDLEWARE_TOKEN);
 
             xhr.send(formData);
         }

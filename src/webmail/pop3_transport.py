@@ -1,9 +1,10 @@
-import email
-from email.policy import EmailPolicy
-# Do *not* remove this, we need to use this in subclasses of EmailTransport
-from email.errors import MessageParseError  # noqa: F401
-
 import poplib
+import email
+from email.policy import default as email_policy, strict as email_strict_policy
+from email.errors import MessageParseError, MessageDefect
+
+
+from . import settings
 
 
 class Pop3Transport:
@@ -26,7 +27,12 @@ class Pop3Transport:
         self.server.pass_(password)
 
     def get_email_from_bytes(self, contents):
-        message = email.message_from_bytes(contents, policy=EmailPolicy())
+        if settings.WEBMAIL_EMAIL_PARSING_STRICT_POLICY:
+            policy = email_strict_policy
+        else:
+            policy = email_policy
+
+        message = email.message_from_bytes(contents, policy=policy)
 
         return message
 
@@ -34,20 +40,22 @@ class Pop3Transport:
         return bytes('\r\n', 'ascii').join(message_lines)
 
     def get_message(self, condition=None):
+        # TODO: USE UIDL
         message_count = len(self.server.list()[1])
         for i in range(message_count):
+            msg_contents = self.get_message_body(
+                self.server.retr(i + 1)[1]
+            )
             try:
-                msg_contents = self.get_message_body(
-                    self.server.retr(i + 1)[1]
-                )
                 message = self.get_email_from_bytes(msg_contents)
-
-                if condition and not condition(message):
-                    continue
-
-                yield message
-            except MessageParseError:
+            except (MessageParseError, MessageDefect):
                 continue
+
+            if condition and not condition(message):
+                continue
+
+            yield message
+
             self.server.dele(i + 1)
         self.server.quit()
         return

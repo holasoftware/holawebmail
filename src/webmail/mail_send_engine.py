@@ -26,7 +26,7 @@ def prioritize_sending_email_tasks_ids():
 
 
 @contextlib.contextmanager
-def sender_context(send_mail_task):
+def sender_context(send_mail_task_id):
     """
     Makes a context manager appropriate for sending a message.
     Entering the context using `with` may return a `None` object if the message
@@ -46,10 +46,10 @@ def sender_context(send_mail_task):
     with transaction.atomic():
         try:
             try:
-                yield SendMailTaskModel.objects.filter(id=send_mail_task.id).select_for_update(nowait=True).get()
+                yield SendMailTaskModel.objects.filter(id=send_mail_task_id).select_for_update(nowait=True).get()
             except NotSupportedError:
-                # MySQL
-                yield SendMailTaskModel.objects.filter(id=send_mail_task.id).select_for_update().get()
+                # MySQL does not support the 'nowait' argument
+                yield SendMailTaskModel.objects.filter(id=send_mail_task_id).select_for_update().get()
         except SendMailTaskModel.DoesNotExist:
             # Deleted by someone else
             yield None

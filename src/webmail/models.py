@@ -1,6 +1,6 @@
 import datetime
 import time
-import gzip
+import uuid
 import email.header
 from email.utils import parseaddr
 from email import message_from_string
@@ -12,7 +12,6 @@ import uuid
 import base64
 from tempfile import NamedTemporaryFile
 import smtplib
-import socket
 import sys
 import traceback
 import hashlib
@@ -21,6 +20,7 @@ from importlib import import_module
 
 from django.core.files.base import ContentFile, File
 from django.core.mail.message import EmailMessage as DjangoEmailMessage, EmailMultiAlternatives as DjangoEmailMultiAlternatives
+from django.contrib.sessions.backends.base import SessionBase as SessionStoreBase
 from django.db import models, transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
@@ -163,6 +163,7 @@ class WebmailUserModel(models.Model):
     class Meta:
         verbose_name = _('Webmail User')
         verbose_name_plural = _('Webmail Users')
+        db_table = "webmail_webmailuser"
 
 #    def set_from_password(self, password, srp_group=1024):
 #        self.srp_group = srp_group
@@ -221,6 +222,87 @@ class WebmailUserModel(models.Model):
         return self.access_logs.all().latest("date").date
 
 
+class WebmailSessionManager(models.Manager):
+    use_in_migrations = True
+
+    # TODO: Revisar esta parte
+    def encode(self, session_dict):
+        """
+        Return the given session dictionary serialized and encoded as a string.
+        """
+        session_store_class = self.model.get_session_store_class()
+        return session_store_class().encode(session_dict)
+
+    def save(self, user, session_key, session_dict, expire_date):
+        s = self.model(user=user, session_key=session_key, session_data=self.encode(session_dict), expire_date=expire_date)
+        if session_dict:
+            s.save()
+        else:
+            s.delete()  # Clear sessions with no data.
+        return s
+
+    def filter_active(self, user=None):
+        kwargs = {
+            "expire_date__gte": timezone.now()
+        }
+
+        if user is not None:
+            kwargs["user"] = user
+
+        return self.filter(**kwargs)
+
+    def filter_other_active_sessions(self, request):
+        return WebmailSessionModel.objects.filter_active(
+            user=request.webmail_user).exclude(session_key=request.session.session_key)
+
+    def filter_expired(self, user=None):
+        kwargs = {
+            "expire_date__lt": timezone.now()
+        }
+
+        if user is not None:
+            kwargs["user"] = user
+
+        return self.filter(**kwargs)
+
+    def delete_expired(self, user=None):
+        return self.filter_expired(user=user).delete()
+
+
+class WebmailSessionAbstractModel(models.Model):
+    uuid = models.UUIDField(_('UUID'), unique=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(WebmailUserModel, null=True, blank=True, editable=False, db_index=True, on_delete=models.CASCADE)
+    session_key = models.CharField(_('Session key'), max_length=40, primary_key=True)
+    session_data = models.TextField(_('Session data'), editable=False)
+    expire_date = models.DateTimeField(_('Expire date'), editable=False, db_index=True)
+    last_activity = models.DateTimeField(_('Last activity'), editable=False, auto_now=True)
+
+    objects = WebmailSessionManager()
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return self.session_key
+
+    def get_decoded(self):
+        session_store_class = self.get_session_store_class()
+        return session_store_class().decode(self.session_data)
+
+
+class WebmailSessionModel(WebmailSessionAbstractModel):
+    @classmethod
+    def get_session_store_class(cls):
+        return SessionStoreBase
+
+    class Meta:
+        verbose_name = _('Webmail Session')
+        verbose_name_plural = _('Webmail Sessions')
+        ordering = ('-last_activity',)
+
+        db_table = "webmail_webmailsession"
+
+
 class AccessLogModel(models.Model):
     user = models.ForeignKey(WebmailUserModel, on_delete=models.CASCADE, db_index=True, editable=False, related_name="access_logs")
     user_agent = models.TextField(_("User Agent"), null=True, editable=False)
@@ -228,10 +310,14 @@ class AccessLogModel(models.Model):
     date = models.DateTimeField(_('Date Last login'), auto_now_add=True)
 
     class Meta:
-        verbose_name = _('Access log')
-        verbose_name_plural = _('Access logs')
+        verbose_name = _('Access Log')
+        verbose_name_plural = _('Access Logs')
 
-        ordering = ('date',)
+        ordering = ('-date',)
+        db_table = "webmail_accesslog"
+
+    def __str__(self):
+        return str(self.id)
 
 
 def extract_ip(request):
@@ -315,6 +401,7 @@ class ContactModel(models.Model):
         ordering = ('displayed_name',)
 
         unique_together = ('user', 'email')
+        db_table = "webmail_contact"
 
 
 class ActiveMailboxModelManager(models.Manager):
@@ -396,6 +483,7 @@ class MailboxModel(models.Model):
 
         ordering = ('name',)
         unique_together = ('user', 'name')
+        db_table = "webmail_mailbox"
 
 
 class Pop3MailServerModel(models.Model):
@@ -442,6 +530,7 @@ class Pop3MailServerModel(models.Model):
     class Meta:
         verbose_name = _('Pop3 Mail Server')
         verbose_name_plural = _('Pop3 Mail Servers')
+        db_table = "webmail_pop3mailserver"
 
 
     def get_connection(self):
@@ -533,7 +622,7 @@ class SmtpServerModel(models.Model):
         else:
             smtp = smtplib.SMTP()
 
-        smtp.connect(host = self.address or "localhost", port=self.port)
+        smtp.connect(host = self.ip_address or "localhost", port=self.port)
 
 
         # TLS/SSL are mutually exclusive, so only attempt TLS over
@@ -568,6 +657,7 @@ class SmtpServerModel(models.Model):
     class Meta:
         verbose_name = _('SMTP Server')
         verbose_name_plural = _('SMTP Servers')
+        db_table = "webmail_smtpserver"
 
 
 class TagModel(models.Model):
@@ -576,6 +666,7 @@ class TagModel(models.Model):
     class Meta:
         verbose_name = _("Tag")
         verbose_name_plural = _("Tags")
+        db_table = "webmail_tag"
 
 
 class UnknownFolderException(Exception):
@@ -1044,7 +1135,7 @@ class MessageModel(models.Model):
         text = self.get_text()
         if text:
             # TODO
-            return get_excerpt(text, max_chars=settings.WEBMAIL_MAX_CHARS_EXCERPT)
+            return get_excerpt(text, max_chars=settings.WEBMAIL_EXCERPT_MAX_CHARS)
 
     @property
     def email_message(self):
@@ -1225,6 +1316,7 @@ class MessageModel(models.Model):
         ordering = ('-date',)
         verbose_name = _('Message')
         verbose_name_plural = _('Messages')
+        db_table = "webmail_message"
 
 
 def get_attachment_save_path(instance, filename):
@@ -1287,6 +1379,7 @@ class MessageAttachmentModel(models.Model):
     class Meta:
         verbose_name = _('Message Attachment')
         verbose_name_plural = _('Message Attachments')
+        db_table = "webmail_messageattachment"
 
 
 class UploadAttachmentSessionModel(models.Model):
@@ -1309,8 +1402,9 @@ class UploadAttachmentSessionModel(models.Model):
         super().delete(*args, **kwargs)
 
     class Meta:
-        verbose_name = _('Upload File Session')
-        verbose_name_plural = _('Upload File Sessions')
+        verbose_name = _('Upload Attachment Session')
+        verbose_name_plural = _('Upload Attachment Sessions')
+        db_table = "webmail_uploadattachmentsession"
 
 
 #def compose_upload_to(instance, filename):
@@ -1447,8 +1541,12 @@ class SendMailTaskModel(models.Model):
     class Meta:
         verbose_name = _("Send Mail Task")
         verbose_name_plural = _("Send Email Task Queue")
+        db_table = "webmail_sendmailtask"
 
     def log_success(self, email, sent_at=None):
+        if sent_at is None:
+            sent_at = timezone.now()
+
         return SendMailTaskLogModel.objects.create(
             task=self,
             email=email,
@@ -1457,6 +1555,9 @@ class SendMailTaskModel(models.Model):
         )
 
     def log_error(self, email, exception_type=None, exception_message=None, py_traceback=None, sent_at=None):
+        if sent_at is None:
+            sent_at = timezone.now()
+
         return SendMailTaskLogModel.objects.create(
             task=self,
             email=email,
@@ -1477,37 +1578,37 @@ class SendMailTaskModel(models.Model):
         self.status = self.STATUS_QUEUED
         self.scheduled_time = None
 
-        self.save(update_field=("status", "scheduled_time"))
+        self.save(update_fields=("status", "scheduled_time"))
 
     def set_status_in_progress(self):
         self.status = self.STATUS_IN_PROGRESS
         self.scheduled_time = None
 
-        self.save(update_field=("status", "scheduled_time"))
+        self.save(update_fields=("status", "scheduled_time"))
 
     def set_status_completed(self):
         self.status = self.STATUS_COMPLETED
         self.scheduled_time = None
 
-        self.save(update_field=("status", "scheduled_time"))
+        self.save(update_fields=("status", "scheduled_time"))
 
     def set_status_failed(self):
         self.status = self.STATUS_FAILED
         self.scheduled_time = None
 
-        self.save(update_field=("status", "scheduled_time"))
+        self.save(update_fields=("status", "scheduled_time"))
 
     def set_status_cancelled(self):
         self.status = self.STATUS_CANCELLED
         self.scheduled_time = None
 
-        self.save(update_field=("status", "scheduled_time"))
+        self.save(update_fields=("status", "scheduled_time"))
 
     def defer(self, **kw):
         self.status = self.STATUS_QUEUED
         self.scheduled_time = timezone.now() + datetime.timedelta(**kw)
         self.num_deferred_times += 1
-        self.save(update_field=("status", "num_deferred_times", "scheduled_time",))
+        self.save(update_fields=("status", "num_deferred_times", "scheduled_time",))
 
     def __str__(self):
         return str(self.id)
@@ -1569,7 +1670,7 @@ set the attribute again to cause the underlying serialised data to be updated.""
                     exception_message = str(e)
                     exception_type = type(e).__name__
 
-                    py_traceback = ['\n'.join(traceback.format_exception(*sys.exc_info()))]
+                    py_traceback = '\n'.join(traceback.format_exception(*sys.exc_info()))
 
                     logger.warning("Exception sending message task '%s'. Exception type: %s. Exception message: %s. Traceback:\n%s" % (self.pk, exception_type, exception_message, py_traceback))
 
@@ -1627,6 +1728,7 @@ class SendMailTaskLogModel(models.Model):
 
         verbose_name = _("Mail Sent Log")
         verbose_name_plural = _("Mail Sent Logs")
+        db_table = "webmail_sendmailtasklog"
 
     def __str__(self):
         if self.success:

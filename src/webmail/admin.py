@@ -3,9 +3,10 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.safestring import mark_safe
 from django.urls import reverse as reverse_url
 from django.db.models import OuterRef, Subquery
+from django.utils.translation import ugettext as _
 
 
-from webmail.models import WebmailUserModel, AccessLogModel, ContactModel, MailboxModel, Pop3MailServerModel, SmtpServerModel, TagModel, MessageModel, MessageAttachmentModel, UploadAttachmentSessionModel, SendMailTaskModel, SendMailTaskLogModel
+from .models import WebmailUserModel, WebmailSessionModel, AccessLogModel, ContactModel, MailboxModel, Pop3MailServerModel, SmtpServerModel, TagModel, MessageModel, MessageAttachmentModel, UploadAttachmentSessionModel, SendMailTaskModel, SendMailTaskLogModel
 
 
 
@@ -20,6 +21,9 @@ class MailboxModelAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 class Pop3MailServerModelAdmin(admin.ModelAdmin):
     list_per_page = 10
@@ -27,6 +31,9 @@ class Pop3MailServerModelAdmin(admin.ModelAdmin):
     readonly_fields = ('mailbox', 'active', 'username', 'password', 'ip_address', 'port', 'use_ssl', 'last_polling',)
 
     def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
 
@@ -40,6 +47,9 @@ class SmtpServerModelAdmin(admin.ModelAdmin):
     from_email_header.short_description = 'Email'
 
     def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
 
@@ -67,6 +77,9 @@ class ContactModelAdmin(admin.ModelAdmin):
         return qs
 
     def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
 
@@ -99,7 +112,7 @@ class MessageModelAdmin(admin.ModelAdmin):
     def get_mailbox_filter_url(self, instance):
         return mark_safe("<a href='?mailbox=%s'>%s</a>" % (instance.mailbox.id, instance.mailbox.name))
 
-    get_mailbox_filter_url.short_description = "Mailbox"
+    get_mailbox_filter_url.short_description = _("Mailbox")
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -116,6 +129,9 @@ class MessageModelAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def attachment_count(self, instance):
         return instance.attachments.count()
     attachment_count.short_description = 'Num. Attachments'
@@ -127,7 +143,7 @@ class MessageModelAdmin(admin.ModelAdmin):
 
 
 class MessageAttachmentModelAdmin(admin.ModelAdmin):
-    list_display = ('message_url', 'file_name', 'mimetype')
+    list_display = ('id', 'message_url', 'file_name', 'mimetype')
     list_filter = ('mimetype',)
 
     def message_url(self, instance):
@@ -137,9 +153,12 @@ class MessageAttachmentModelAdmin(admin.ModelAdmin):
         message_url = reverse_url('admin:{}_{}_change'.format(instance._meta.app_label, message._meta.model_name), args=(message_id,))
 
         return mark_safe("<a href='%s'>%s</a>" % (message_url, message_id))
-    message_url.short_description = "Message"
+    message_url.short_description = _("Message")
 
     def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
 
@@ -149,12 +168,18 @@ class TagModelAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
 
 class UploadAttachmentSessionModelAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'created_at')
 
     def has_add_permission(self, request, obj=None):
         return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 class WebmailUserModelAdmin(admin.ModelAdmin):
     list_per_page = 10
@@ -175,6 +200,9 @@ class WebmailUserModelAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def last_login(self, obj):
         return obj.last_login
 
@@ -190,7 +218,7 @@ class SendMailTaskModelAdmin(admin.ModelAdmin):
 
 #    def show_to(self, instance):
 #        return ", ".join(instance.email_recipients)
-#    show_to.short_description = "To"  # noqa: E305
+#    show_to.short_description = "To"
 
 #    def plain_text_body(self, instance):
 #        email_message = instance.email_message
@@ -201,6 +229,9 @@ class SendMailTaskModelAdmin(admin.ModelAdmin):
 #            return "<Can't decode>"
 
     def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False
 
     def show_logs(self, instance):
@@ -221,6 +252,9 @@ class SendMailTaskLogModelAdmin(admin.ModelAdmin):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def get_task_url(self, instance):
         task_id = instance.task.id
 
@@ -229,6 +263,43 @@ class SendMailTaskLogModelAdmin(admin.ModelAdmin):
         return mark_safe("<a href='%s'>%s</a>" % (change_task_url, task_id))
     get_task_url.short_description = 'Task'
 
+
+class WebmailSessionModelAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = ["get_uuid_hex", "get_username", "session_key", "expire_date", "last_activity"]
+
+    readonly_fields = ["get_uuid_hex", "user", "session_key", "expire_date", "last_activity"]
+
+    def get_username(self, instance):
+        return instance.user.username
+    get_username.short_description = _('Username')
+
+    def get_uuid_hex(self, instance):
+        return instance.uuid.hex
+    get_uuid_hex.short_description = _('UUID')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class AccessLogModelAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = ["id", "get_username", "user_agent", "ip", "date"]
+
+    readonly_fields = ["user", "user_agent", "ip", "date"]
+
+    def get_username(self, instance):
+        return instance.user.username
+    get_username.short_description = _('Username')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 admin.site.register(WebmailUserModel, WebmailUserModelAdmin)
 admin.site.register(ContactModel, ContactModelAdmin)
@@ -241,9 +312,11 @@ admin.site.register(MessageAttachmentModel, MessageAttachmentModelAdmin)
 admin.site.register(UploadAttachmentSessionModel, UploadAttachmentSessionModelAdmin)
 admin.site.register(SendMailTaskModel, SendMailTaskModelAdmin)
 admin.site.register(SendMailTaskLogModel, SendMailTaskLogModelAdmin)
-admin.site.register(AccessLogModel)
+admin.site.register(AccessLogModel, AccessLogModelAdmin)
+admin.site.register(WebmailSessionModel, WebmailSessionModelAdmin)
 
-admin.site.site_header = "Webmail Admin"
-admin.site.site_title = "Webmail Admin Portal"
-admin.site.index_title = "Welcome to Webmail Admin Portal"
+
+admin.site.site_header = _("Webmail Admin")
+admin.site.site_title = _("Webmail Admin Portal")
+admin.site.index_title = _("Welcome to Webmail Admin Portal")
 

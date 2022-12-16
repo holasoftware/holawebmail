@@ -19,8 +19,7 @@ AUTH_HASH_SESSION_KEY = '_auth_webmail_user_hash'
 def _get_user_session_key(request):
     # This value in the session is always serialized to a string, so we need
     # to convert it back to Python whenever we access it.
-    session = request.webmail_session
-    return WebmailUserModel._meta.pk.to_python(session[AUTH_SESSION_KEY])
+    return WebmailUserModel._meta.pk.to_python(request.session[AUTH_SESSION_KEY])
 
 
 def login(request, user):
@@ -29,8 +28,7 @@ def login(request, user):
     have to reauthenticate on every request. Note that data set during
     the anonymous session is retained when the user logs in.
     """
-
-    session = request.webmail_session
+    session = request.session
     session_auth_hash = user.get_session_auth_hash()
 
     if AUTH_SESSION_KEY in session:
@@ -43,6 +41,8 @@ def login(request, user):
             session.flush()
     else:
         session.cycle_key()
+
+    session.set_user(user)
 
     session[AUTH_SESSION_KEY] = user._meta.pk.value_to_string(user)
     session[AUTH_HASH_SESSION_KEY] = session_auth_hash
@@ -68,22 +68,25 @@ def logout(request):
     user_logged_out_signal.send(sender=user.__class__, request=request, user=user)
 
     # remember language choice saved to session
-    language = request.webmail_session.get(LANGUAGE_SESSION_KEY)
+    language = request.session.get(LANGUAGE_SESSION_KEY)
 
-    request.webmail_session.flush()
+    request.session.set_user(None)
+
+    request.session.flush()
 
     if language is not None:
-        request.webmail_session[LANGUAGE_SESSION_KEY] = language
+        request.session[LANGUAGE_SESSION_KEY] = language
 
     if hasattr(request, 'webmail_user'):
         request.webmail_user = AnonymousUser()
 
 
-def get_webmail_user(request, webmail_session):
+def get_webmail_user(request):
     """
     Return the user model instance associated with the given request session.
     If no user is retrieved, return an instance of `AnonymousUser`.
     """
+    session = request.session
     user = AnonymousUser()
 
     try:
@@ -97,13 +100,13 @@ def get_webmail_user(request, webmail_session):
             return user
 
         # Verify the session
-        session_hash = webmail_session.get(AUTH_HASH_SESSION_KEY)
+        session_hash = session.get(AUTH_HASH_SESSION_KEY)
         session_hash_verified = session_hash and constant_time_compare(
             session_hash,
             user.get_session_auth_hash()
         )
         if not session_hash_verified:
-            webmail_session.flush()
+            session.flush()
             user = AnonymousUser()
 
     return user
@@ -119,7 +122,7 @@ def update_session_auth_hash(request, user):
     password was changed.
     """
     
-    session = request.webmail_session
+    session = request.session
 
     session.cycle_key()
     if request.webmail_user == user:

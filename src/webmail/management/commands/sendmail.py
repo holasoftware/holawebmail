@@ -15,6 +15,7 @@ class Command(BaseCommand):
     help = "Do one pass through the mail queue, attempting to send all mail, or send email forever."
 
     def add_arguments(self, parser):
+# TODO
 #        parser.add_argument(
 #            '-p', '--processes',
 #            type=int,

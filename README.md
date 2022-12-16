@@ -15,8 +15,10 @@ Features
 - Safe upload of big file during email composition using upload sessions
 - Markdown editor for sending emails
 - Logging of all authentication attempts.
+- Logging control session
 - Export/Import emails
 - Hook system to extend easily the system
+- Multiconfigurable
 - Save mails to draft store
 - Search text in mails
 - Add star to interesting mails
@@ -54,14 +56,35 @@ In ``settings.py``:
         ...
     ]
 
+    SESSION_ENGINE = "webmail.session_engine"
+
+These are the required apps:
+
+    - django.contrib.auth
+    - django.contrib.contenttypes
+    - django.contrib.sessions
+    - django.contrib.messages
+    - django.contrib.staticfiles
+
+These are the required middlewares:
+
+    - django.contrib.sessions.middleware.SessionMiddleware
+    - django.middleware.csrf.CsrfViewMiddleware
+    - django.contrib.messages.middleware.MessageMiddleware
+
+
 Run database migrations to set up the needed database tables.
 
 To add testing data and see the application running in a demo:
 
     python manage.py testdata
 
+or use `python manage.py init` to migrate, add test data and add optionally create the root user. For example:
+
+    python manage.py init
 
 Credentials for the demo:
+
     username:test
     password:test
 
@@ -73,13 +96,15 @@ To fetch all emails from all active POP3 servers:
 To fetch all emails for a specific mailboxes:
 
     python manage.py fetch <mailbox_name1> <mailbox_name2> ...
-Every argument is a mailbox ID or a term with the username and the mailbox name concatenated with a colon: username:mailbox_name.
+Every argument is a mailbox ID or a term with the username and the mailbox name concatenated with a colon:
+
+	username:mailbox_name.
 
 To send all the queued emails in one time:
 
     python manage.py sendmail
 
-To send all queued emails continuosly inside a loop:
+To send all queued emails forever inside a loop (Control+C to terminate):
 
     python manage.py sendmail --forever
 
@@ -87,11 +112,23 @@ To purge old tasks that are completed or cancelled:
 
     python manage.py purgeoldsendmailtasks
 
+The django admin should be run independently for a better isolation.
 
-Notes
------
+To start the django admin:
+
+    python runadmin.py
+
+The settings for the django admin are here:
+
+    admin/settings.py
+
+
+Technical notes
+---------------
 The user login using SRP authentication without never sending the password on the wire. 
     https://wikipedia.org/wiki/Secure_Remote_Password_protocol
+
+The django admin app should be run in a different port (or in a different machine) than the webmail. Set different cookie names for security reasons. The tables for the webmail users and the django admin staff are different. This makes possible to use multiple databases in the webmail to store the table related to the credentials in django admin staff and the webmail. The way of doing this is using the `DATABASE` setting to define multiple databases and a routing scheme in `DATABASE_ROUTERS` to provide a different database name for the model `AUTH_USER_MODEL` and another one for the model  `webmail.models.WebmailUserModel`.
 
 By design, the code use minimal dependencies as possible to avoid more points of attack. 
 

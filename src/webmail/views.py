@@ -7,7 +7,8 @@ import itertools
 import uuid
 import time
 import email
-from email.policy import EmailPolicy
+from email.policy import default as email_policy, strict as email_strict_policy
+from email.errors import MessageParseError, MessageDefect
 from urllib.parse import urlencode
 
 
@@ -17,7 +18,6 @@ from django.utils.translation import ugettext as _
 from django.utils.decorators import method_decorator
 from django.utils.formats import localize
 from django.utils.safestring import mark_safe
-from django.urls import reverse as reverse_url
 from django.contrib import messages as admin_messages
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
@@ -35,14 +35,13 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db.models import Q
 from django.db.utils import IntegrityError
-from django.shortcuts import redirect
 from django.forms.models import model_to_dict
 
 
 from .auth_decorators import login_required
 from .auth import login as auth_login, logout as auth_logout, update_session_auth_hash
 from .srp import Verifier as SRP_Verifier, gN
-from .models import MailboxModel, SmtpServerModel, Pop3MailServerModel, MessageModel, MessageAttachmentModel, TagModel, UploadAttachmentSessionModel, ContactModel, WebmailUserModel, UnknownFolderException, AccessLogModel, InvalidEmailMessageException
+from .models import MailboxModel, SmtpServerModel, Pop3MailServerModel, MessageModel, MessageAttachmentModel, TagModel, UploadAttachmentSessionModel, ContactModel, WebmailUserModel, UnknownFolderException, AccessLogModel, InvalidEmailMessageException, WebmailSessionModel
 from .signals import file_attachment_uploaded_signal, attachment_downloaded_signal, message_flagged_as_spam_signal, message_flagged_as_not_spam_signal, message_queued_signal, attachments_uploaded_signal, user_logged_in_signal
 from .forms import MailActionForm, ComposeMailForm, MailboxForm, Pop3MailServerForm, MailboxActionForm, ContactForm, ContactActionForm, UsernameForm, SignUpForm, SRPUserInfoForm, SmtpServerForm
 #from .email_signature import EmailSignature
@@ -229,7 +228,7 @@ def get_webmail_context(request, page_name=None, context=None):
         context["mbox"] = current_mailbox.pk
         context["pop3_mail_server_configured"] = current_mailbox.is_pop3_mail_server_configured
 
-        context["show_compose_btn"] = settings.WEBMAIL_SHOW_COMPOSE_BTN
+        context["show_compose_btn"] = settings.WEBMAIL_UI_SHOW_COMPOSE_BTN
 
     mailbox_menu = MailboxModel.objects.filter(user=request.webmail_user).values("id", "name", "is_default")
 
@@ -237,13 +236,13 @@ def get_webmail_context(request, page_name=None, context=None):
 
     context["mailbox_menu"] = mailbox_menu
     context["user"] = user
-    context["brand_name"] = settings.WEBMAIL_BRAND_NAME
+    context["brand_name"] = settings.WEBMAIL_UI_BRAND_NAME
 
-    context["show_folders"] = settings.WEBMAIL_SHOW_FOLDERS
-    context["show_folder_inbox"] = settings.WEBMAIL_SHOW_FOLDER_INBOX
-    context["show_folder_sent"] = settings.WEBMAIL_SHOW_FOLDER_SENT
-    context["show_folder_spam"] = settings.WEBMAIL_SHOW_FOLDER_SPAM
-    context["show_folder_trash"] = settings.WEBMAIL_SHOW_FOLDER_TRASH
+    context["show_folders"] = settings.WEBMAIL_UI_SHOW_FOLDERS
+    context["show_folder_inbox"] = settings.WEBMAIL_UI_SHOW_FOLDER_INBOX
+    context["show_folder_sent"] = settings.WEBMAIL_UI_SHOW_FOLDER_SENT
+    context["show_folder_spam"] = settings.WEBMAIL_UI_SHOW_FOLDER_SPAM
+    context["show_folder_trash"] = settings.WEBMAIL_UI_SHOW_FOLDER_TRASH
 
     context["user_can_mark_as_spam"] = settings.WEBMAIL_USER_CAN_MARK_AS_SPAM
 
@@ -258,7 +257,7 @@ def get_webmail_context(request, page_name=None, context=None):
     context["extra_stylesheets"] = dispatch_hook("extra_stylesheets", [])
     context["extra_scripts"] = dispatch_hook("extra_scripts", [])
 
-    manage_mailboxes = settings.WEBMAIL_ENABLE_MANAGE_MAILBOXES
+    manage_mailboxes = settings.WEBMAIL_MANAGE_MAILBOXES_ENABLED
 
     context["show_mailboxes_admin"] = manage_mailboxes
 
@@ -288,7 +287,15 @@ def get_webmail_context(request, page_name=None, context=None):
             }
         )
 
-    if settings.WEBMAIL_ENABLE_ACCESS_LOGS:
+    if settings.WEBMAIL_CONTROL_SESSIONS_ENABLED:
+        webmail_management_links.append(
+            {
+                "url": reverse_webmail_url('control_sessions', mailbox=mailbox),
+                "text": _("Control sessions")
+            }
+        )
+
+    if settings.WEBMAIL_ACCESS_LOGS_ENABLED:
         webmail_management_links.append(
             {
                 "url": reverse_webmail_url('access_logs', mailbox=mailbox),
@@ -298,17 +305,12 @@ def get_webmail_context(request, page_name=None, context=None):
 
     context["webmail_management_links"] = dispatch_hook("webmail_management_links", webmail_management_links, mailbox=mailbox, user=user)
 
-    context["webmail_session_id"] = request.webmail_session.get("session_id", "")
+    request.session.load()
+    context["webmail_session_id"] = request.session.uuid.hex
 
     context = dispatch_hook("page_context", context, request=request)
     context = dispatch_hook("%s_page_context" % page_name, context, request=request)
     return context
-
-
-def set_session_id(sender, request, user, **kw):
-    request.webmail_session["session_id"] = uuid.uuid1().hex
-
-user_logged_in_signal.connect(set_session_id, sender=WebmailUserModel)
 
 
 def render_webmail_page(request, template_name, page_name, context=None):
@@ -463,12 +465,21 @@ class WebmailListView(WebmailViewMixin, ListView):
     bulk_action_url_name = None
     back_url = None
     back_url_text = None
-    obj_actions = None
+    object_actions = None
 
-    show_list_controls = True
+    show_object_id = True
+    object_is_editable = True
+
+    show_object_list_controls = True
 
     can_bulk_delete = True
     allowed_to_edit_objects = True
+
+    def get_object_is_editable(self):
+        return self.object_is_editable
+
+    def get_show_object_id(self):
+        return self.show_object_id
 
     def get_allowed_to_edit_object(self, obj):
         return self.allowed_to_edit_objects
@@ -503,19 +514,19 @@ class WebmailListView(WebmailViewMixin, ListView):
         else:
             return self.object_name + "_list"
 
-    def get_obj_actions(self):
-        if self.obj_actions is None:
-            obj_actions = []
+    def get_object_actions(self):
+        if self.object_actions is None:
+            object_actions = []
         else:
-            obj_actions = list(self.obj_actions)
+            object_actions = list(self.object_actions)
 
         if self.can_bulk_delete:
-            obj_actions.append({
+            object_actions.append({
                 "label": _("Delete"),
                 "action_name": "delete"
             })
 
-        return obj_actions
+        return object_actions
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -524,15 +535,17 @@ class WebmailListView(WebmailViewMixin, ListView):
         context["object_name"] = self.object_name
         context["back_url"] = self.get_back_url()
         context["back_url_text"] = self.get_back_url_text()
+        context["show_object_id"] = self.get_show_object_id()
+        context["object_is_editable"] = self.get_object_is_editable()
 
-        if self.show_list_controls:
-            context["show_list_controls"] = self.show_list_controls
+        if self.show_object_list_controls:
+            context["show_object_list_controls"] = self.show_object_list_controls
             context["add_obj_url_name"] = self.get_add_obj_url_name()
 
-            obj_actions = self.get_obj_actions()
+            object_actions = self.get_object_actions()
 
-            if obj_actions:
-                context["obj_actions"] = obj_actions
+            if object_actions:
+                context["object_actions"] = object_actions
                 context["bulk_action_url_name"] = self.get_bulk_action_url_name()
 
         page_name = self.get_page_name()
@@ -555,7 +568,7 @@ class WebmailListView(WebmailViewMixin, ListView):
             table_rows.append({
                 "id": obj.id,
                 "cell_data_list": [row_data[column_name] if column_name in row_data else "" for column_name in column_names],
-                "obj_editable": self.get_allowed_to_edit_object(obj)
+                "has_edit_permission": self.get_allowed_to_edit_object(obj)
             })
 
         context["table_rows"] = table_rows
@@ -655,7 +668,7 @@ def mailboxes(request):
     if query.count() == 0:
         return self.reverse_url("mailbox_add")
 
-    paginator = Paginator(query, settings.WEBMAIL_MAILBOX_ITEMS_PER_PAGE)
+    paginator = Paginator(query, settings.WEBMAIL_UI_MAILBOX_LIST_PAGE_SIZE)
 
     try:
         page = paginator.page(page_num)
@@ -741,7 +754,7 @@ class MailboxUpdateView(WebmailUpdateView):
         after_form_buttons = ""
         bottom_objects = []
 
-        if settings.WEBMAIL_ENABLE_MANAGE_SMTP_SERVER:
+        if settings.WEBMAIL_MANAGE_SMTP_SERVER_ENABLED:
             try:
                 smtp_server = self.object.smtp_server
     #        except AttributeError:
@@ -754,7 +767,7 @@ class MailboxUpdateView(WebmailUpdateView):
                     "edit_url": self.reverse_url("smtp_server_edit", mailbox_id=mailbox_id)
                 })
 
-        if settings.WEBMAIL_ENABLE_MANAGE_POP3_MAIL_SERVER:
+        if settings.WEBMAIL_MANAGE_POP3_MAIL_SERVER_ENABLED:
             try:
                 pop3_mail_server = self.object.pop3_mail_server
     #        except AttributeError:
@@ -1172,6 +1185,8 @@ class AccessLogsListView(WebmailListView):
 
     title = _("Access logs")
     object_name = "access_log"
+    show_object_id = False
+    object_is_editable = False
 
     columns = [
         {
@@ -1188,7 +1203,7 @@ class AccessLogsListView(WebmailListView):
         },
     ]
 
-    show_list_controls = False
+    show_object_list_controls = False
     can_bulk_delete = False
     allowed_to_edit_objects = False
 
@@ -1291,7 +1306,7 @@ def show_folder(request, mailbox, folder_name="inbox"):
             Q_objects.append(Q(attachments__isnull=True))
 
     obj_results = MessageModel.objects.filter(*Q_objects) 
-    paginator = Paginator(obj_results, settings.WEBMAIL_MESSAGE_ITEMS_PER_PAGE, allow_empty_first_page=False)
+    paginator = Paginator(obj_results, settings.WEBMAIL_UI_MESSAGE_LIST_PAGE_SIZE, allow_empty_first_page=False)
 
     try:
         page_obj = paginator.page(page_num)
@@ -1403,7 +1418,7 @@ def delete_all_spam(request, mailbox):
 @ajax(login_required=True, require_POST=True)
 @mailbox_view_decorator(required=True)
 def empty_trash(request, mailbox):
-    num_messages, _ = MessageModel.trash_folder.filter(mailbox=mailbox).delete()
+    num_messages, _not_important = MessageModel.trash_folder.filter(mailbox=mailbox).delete()
 
     return {
         "num_messages": num_messages
@@ -1437,7 +1452,7 @@ def mail_delete(request, mailbox, message_id):
 
     message.user_action_delete()
 
-    admin_messages.success(request, _("Message '%s' has been deleted.") % message_id)
+    admin_messages.success(request, mark_safe(_("Message <b>%s</b> has been deleted.") % message_id))
 
     url = get_folder_url(mailbox, folder_name)
     return HttpResponseRedirect(url)
@@ -1596,12 +1611,12 @@ def render_compose_page(request, subject=None, to=None, cc=None, bcc=None, body=
     if to is not None:
         context["to"] = to
 
-    if settings.WEBMAIL_SHOW_CC:
+    if settings.WEBMAIL_UI_SHOW_CC:
         context["show_cc"] = True
         if cc is not None:
             context["cc"] = cc
 
-    if settings.WEBMAIL_SHOW_BCC:
+    if settings.WEBMAIL_UI_SHOW_BCC:
         context["show_bcc"] = True
         if bcc is not None:
             context["bcc"] = bcc
@@ -1928,7 +1943,7 @@ def attachment_upload(request, mailbox, upload_session_id):
     upload_session = get_object_or_404(UploadAttachmentSessionModel, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
 
     fobj = request.FILES['attachment']
-    if fobj.size > settings.WEBMAIL_MAX_ATTACHMENT_SIZE:
+    if fobj.size > settings.WEBMAIL_ATTACHMENT_MAX_SIZE:
         raise Http404
 
     file_attachment_uploaded_signal.send(sender=UploadAttachmentSessionModel, request=request, upload_session=upload_session, file_attachment=fobj)
@@ -2146,7 +2161,7 @@ def read_mail(request, mailbox, message_id):
         "secondary_receivers": secondary_receivers,
         "back_page_url": back_page_url,
         "show_export_mail_btn": settings.WEBMAIL_EXPORT_MAIL_ENABLED,
-        "show_email_headers_btn": settings.WEBMAIL_SHOW_EMAIL_HEADERS_BTN
+        "show_email_headers_btn": settings.WEBMAIL_EMAIL_HEADERS_PAGE_ENABLED
     })
 
 #    if message.attachments:
@@ -2514,13 +2529,13 @@ def change_username_step1(request):
     if not username_form.is_valid():
         raise FormAJAXError(username_form)
 
-    authentication = SRP_Authentication(request.POST, request.webmail_session, user=user, session_prefix="change_username_", exception_class=InvalidPasswordAjaxError)
+    authentication = SRP_Authentication(request.POST, request.session, user=user, session_prefix="change_username_", exception_class=InvalidPasswordAjaxError)
     response = authentication.step1()
 
-    request.webmail_session["new_username"] = username_form.cleaned_data["username"]
-    request.webmail_session["verifier"] = srp_info_form.cleaned_data["verifier"]
-    request.webmail_session["salt"] = srp_info_form.cleaned_data["salt"]
-    request.webmail_session["srp_group"] = srp_info_form.cleaned_data["srp_group"]
+    request.session["new_username"] = username_form.cleaned_data["username"]
+    request.session["verifier"] = srp_info_form.cleaned_data["verifier"]
+    request.session["salt"] = srp_info_form.cleaned_data["salt"]
+    request.session["srp_group"] = srp_info_form.cleaned_data["srp_group"]
 
     return response
 
@@ -2529,21 +2544,21 @@ def change_username_step1(request):
 @ajax(require_POST=True)  
 def change_username_step2(request):
     for parameter_name in ("new_username", "verifier", "salt", "srp_group"):
-        if parameter_name not in request.webmail_session:
+        if parameter_name not in request.session:
             raise AjaxError("'%s' parameter not in session" % parameter_name)
 
     user = request.webmail_user
 
-    authentication = SRP_Authentication(request.POST, request.webmail_session, user=user, session_prefix="change_username_", exception_class=InvalidPasswordAjaxError)
+    authentication = SRP_Authentication(request.POST, request.session, user=user, session_prefix="change_username_", exception_class=InvalidPasswordAjaxError)
 
     response = authentication.step2()
 
-    username = request.webmail_session["new_username"]
+    username = request.session["new_username"]
 
     user.username = username
-    user.verifier = request.webmail_session["verifier"]
-    user.salt = request.webmail_session["salt"]
-    user.srp_group = request.webmail_session["srp_group"]
+    user.verifier = request.session["verifier"]
+    user.salt = request.session["salt"]
+    user.srp_group = request.session["srp_group"]
     user.save(update_fields=("username", "verifier", "salt", "srp_group"))
 
     update_session_auth_hash(request, user)
@@ -2567,12 +2582,12 @@ def change_password_step1(request):
 
     user = request.webmail_user
 
-    authentication = SRP_Authentication(request.POST, request.webmail_session, user=user, session_prefix="change_password_", exception_class=InvalidPasswordAjaxError)
+    authentication = SRP_Authentication(request.POST, request.session, user=user, session_prefix="change_password_", exception_class=InvalidPasswordAjaxError)
     response = authentication.step1()
 
-    request.webmail_session["verifier"] = form.cleaned_data["verifier"]
-    request.webmail_session["salt"] = form.cleaned_data["salt"]
-    request.webmail_session["srp_group"] = form.cleaned_data["srp_group"]
+    request.session["verifier"] = form.cleaned_data["verifier"]
+    request.session["salt"] = form.cleaned_data["salt"]
+    request.session["srp_group"] = form.cleaned_data["srp_group"]
 
     return response
 
@@ -2580,28 +2595,28 @@ def change_password_step1(request):
 @ajax(require_POST=True)  
 def change_password_step2(request):
     for parameter_name in ("verifier", "salt", "srp_group"):
-        if parameter_name not in request.webmail_session:
+        if parameter_name not in request.session:
             raise AjaxError("'%s' parameter not in session" % parameter_name)
 
     user = request.webmail_user
 
-    authentication = SRP_Authentication(request.POST, request.webmail_session, user=user, session_prefix="change_password_", exception_class=InvalidPasswordAjaxError)
+    authentication = SRP_Authentication(request.POST, request.session, user=user, session_prefix="change_password_", exception_class=InvalidPasswordAjaxError)
 
     response = authentication.step2()
 
-    user.verifier = request.webmail_session["verifier"]
-    user.salt = request.webmail_session["salt"]
-    user.srp_group = request.webmail_session["srp_group"]
+    user.verifier = request.session["verifier"]
+    user.salt = request.session["salt"]
+    user.srp_group = request.session["srp_group"]
     user.save(update_fields=("verifier", "salt", "srp_group"))
 
     update_session_auth_hash(request, user)
     admin_messages.success(request, _('Password changed successfully!'))
 
-    request.webmail_session["session_key"] = authentication.session_key
+    request.session["session_key"] = authentication.session_key
 
-    del request.webmail_session["verifier"]
-    del request.webmail_session["salt"]
-    del request.webmail_session["srp_group"]
+    del request.session["verifier"]
+    del request.session["salt"]
+    del request.session["srp_group"]
 
     return response
 
@@ -2638,13 +2653,16 @@ class InvalidLoginAjaxError(AJAXError):
 
 @ajax(require_POST=True)
 def login_srp_challenge(request):
-    authentication = SRP_Authentication(request.POST, request.webmail_session, exception_class=InvalidLoginAjaxError)
-    return authentication.step1()
+    authentication = SRP_Authentication(request.POST, request.session, exception_class=InvalidLoginAjaxError)
+    result_step1 = authentication.step1()
+
+    return result_step1
+
 
 # Step 2: The client sends its proof of S. The server confirms, and sends its proof of S.
 @ajax(require_POST=True)  
 def login_srp_verify_proof(request):
-    authentication = SRP_Authentication(request.POST, request.webmail_session, exception_class=InvalidLoginAjaxError)
+    authentication = SRP_Authentication(request.POST, request.session, exception_class=InvalidLoginAjaxError)
     response = authentication.step2()
 
     auth_login(request, authentication.user)
@@ -2702,16 +2720,31 @@ def import_mail(request, mailbox):
             fobj = request.FILES['eml']
             eml_bytestring = fobj.read()
 
-            # TODO: Improve validation
-            email_message = email.message_from_bytes(eml_bytestring, policy=EmailPolicy())
+
+            invalid_eml_file = False
+
+            if settings.WEBMAIL_EMAIL_PARSING_STRICT_POLICY:
+                policy = email_strict_policy
+            else:
+                policy = email_policy
+
             try:
-                msg = mailbox.import_email(email_message)
-            except InvalidEmailMessageException:
+                email_message = email.message_from_bytes(eml_bytestring, policy=policy)
+            except (MessageParseError, MessageDefect):
+                invalid_eml_file = True
+            else:
+                try:
+                    msg = mailbox.import_email(email_message)
+                except InvalidEmailMessageException:
+                    invalid_eml_file = True
+
+            if invalid_eml_file:
                 return render_webmail_page(request, "webmail/import_mail.html", "export_mail", {
                     "form_errors": {
                         "eml": _("Invalid .eml file!")
                     }
                 })
+
             admin_messages.success(request, mark_safe(_("Mail <b>%s</b> imported successfully") % msg.id))
 
             return redirect("read_mail", mailbox=mailbox, kwargs={"message_id": msg.id})
@@ -2723,4 +2756,42 @@ def import_mail(request, mailbox):
             })
     else:
         return render_webmail_page(request, "webmail/import_mail.html", "export_mail")
+
+
+#list_sessions
+@login_required
+@require_GET
+@mailbox_view_decorator(required=False)
+def control_sessions_page(request):
+    session = request.session
+    other_sessions = WebmailSessionModel.objects.filter_other_active_sessions(request)
+
+    return render_webmail_page(request, "webmail/control_sessions.html", "control_sessions", {
+        "current_session": {
+            "uuid": session.uuid.hex,
+        },
+        "other_sessions": [
+            {
+                "uuid": session.uuid.hex,
+                "last_activity": session.last_activity
+            } for session in other_sessions
+         ]
+    })
+
+@login_required
+@require_POST
+@mailbox_view_decorator(required=False)
+def delete_other_sessions(request):
+    num_deleted_sessions, _not_important = WebmailSessionModel.objects.filter_other_active_sessions(request).delete()
+
+    if num_deleted_sessions != 0:
+        # TODO: Mejorar la pluralizacion
+        if num_deleted_sessions == 1:
+            success_message = _("Deleted 1 session")
+        else:
+            success_message = _("Deleted %d sessions") % num_deleted_sessions
+
+        admin_messages.success(request, success_message)
+
+    return redirect("control_sessions", mailbox=request.current_mailbox)
 
