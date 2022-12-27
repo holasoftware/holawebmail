@@ -95,14 +95,14 @@ class ActionForm(forms.Form):
         if "queryset" in kwargs:
             queryset = kwargs.pop("queryset")
         else:
-            queryset = self.model.objects.filter(self.get_query_params(kwargs))
+            queryset = self.model.objects.filter(**self.get_query_params(kwargs))
 
         self.queryset = queryset
 
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
 
     def get_query_params(self, kwargs):
-        pass
+        raise NotImplementedError
 
     def clean_obj_list(self):
         value = self.cleaned_data.get("obj_list", None)

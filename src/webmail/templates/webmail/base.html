@@ -85,9 +85,11 @@
             {% include "webmail/includes/folderlist.html" %}
             </div>
             {% endif %}
+            {% if sidebar_links %}
             <div class="sidebar-item mb-3">
-            {% include "webmail/includes/webmail_management_links.html" %}
+            {% include "webmail/includes/sidebar_links.html" %}
             </div>
+            {% endif %}
 
             <div class="sidebar-footer">  
             {% include "webmail/includes/sidebar_footer.html" %}
@@ -143,9 +145,11 @@
                                     </div>
                                     {% endif %}
 
+                                    {% if sidebar_links %}
                                     <div class="sidebar-item">
-                                    {% include "webmail/includes/webmail_management_links.html" %}
+                                    {% include "webmail/includes/sidebar_links.html" %}
                                     </div>
+                                    {% endif %}
 
                                     <div class="sidebar-footer">  
                                     {% include "webmail/includes/sidebar_footer.html" %}

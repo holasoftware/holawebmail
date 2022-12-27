@@ -612,7 +612,7 @@ class SmtpServerModel(models.Model):
         else:
             return self.from_email
 
-    def send_mail(self, recipient, multipart_mail_message):
+    def send_mail(self, recipient_list, multipart_mail_message):
         from_email = self.get_from_email_header_value() or settings.WEBMAIL_DEFAULT_FROM_EMAIL
 
         if self.use_ssl:
@@ -640,7 +640,7 @@ class SmtpServerModel(models.Model):
         #
         statusdict = smtp.sendmail(
             from_email,
-            recipient,
+            recipient_list,
             multipart_mail_message
         )
 
@@ -1533,8 +1533,8 @@ class SendMailTaskModel(models.Model):
     scheduled_time = models.DateTimeField(_('The scheduled sending time'),
                                           blank=True, null=True, db_index=True)
 
-    # last_attempt_at
     last_sent_at = models.DateTimeField(blank=True, null=True)
+    last_sent_succeed = models.BooleanField(blank=True, null=True, db_index=True)
 
     objects = SendMailTaskModelManager()
 
@@ -1542,31 +1542,6 @@ class SendMailTaskModel(models.Model):
         verbose_name = _("Send Mail Task")
         verbose_name_plural = _("Send Email Task Queue")
         db_table = "webmail_sendmailtask"
-
-    def log_success(self, email, sent_at=None):
-        if sent_at is None:
-            sent_at = timezone.now()
-
-        return SendMailTaskLogModel.objects.create(
-            task=self,
-            email=email,
-            sent_at=sent_at,
-            success=True
-        )
-
-    def log_error(self, email, exception_type=None, exception_message=None, py_traceback=None, sent_at=None):
-        if sent_at is None:
-            sent_at = timezone.now()
-
-        return SendMailTaskLogModel.objects.create(
-            task=self,
-            email=email,
-            success=False,
-            sent_at=sent_at,
-            exception_type=exception_type,
-            exception_message=exception_message,
-            py_traceback=py_traceback
-        )
 
     def is_done(self):
         return self.status in (self.STATUS_COMPLETED, self.STATUS_FAILED, self.STATUS_CANCELLED) 
@@ -1656,43 +1631,48 @@ set the attribute again to cause the underlying serialised data to be updated.""
 
         multipart_mail_message = self.multipart_mail_message
 
-        recipient_errors = []
+        logger.info("Sending email to %s" % ", ".join(self.email_recipients))
+        batch = SendMailTaskBatchModel.objects.create(task=self, num_batch=self.num_deferred_times)
 
-        for recipient in self.email_recipients:
-            logger.info("Sending email to %s" % recipient)
+        recipients_with_errors = None
 
-            success = False
+        try:
+            recipients_with_errors = smtp_server.send_mail(self.email_recipients, multipart_mail_message)
+        #except (OSError, smtplib.SMTPException) as e:
+        except Exception as e:
+            # TODO: Check OSError: [Errno 101] Network is unreachable. e.errno == 101
 
-            for i in range(max_retries):
-                try:
-                    smtp_server.send_mail(recipient, multipart_mail_message)
-                except Exception as e:
-                    exception_message = str(e)
-                    exception_type = type(e).__name__
+            last_sent_succeed = False
 
-                    py_traceback = '\n'.join(traceback.format_exception(*sys.exc_info()))
+            if isinstance(e, smtplib.SMTPRecipientsRefused):
+                recipients_with_errors = e.recipients
 
-                    logger.warning("Exception sending message task '%s'. Exception type: %s. Exception message: %s. Traceback:\n%s" % (self.pk, exception_type, exception_message, py_traceback))
+            exception_message = str(e)
+            exception_type = type(e).__name__
 
-                    self.log_error(recipient, exception_type=exception_type, exception_message=exception_message, py_traceback=py_traceback)
-                    time.sleep(wait_time_next_retry)
-                else:
-                    self.log_success(recipient)
-                    success = True
-                    break
+            py_traceback = '\n'.join(traceback.format_exception(*sys.exc_info()))
 
-                self.last_sent_at = timezone.now()
-                self.save(update_fields=["last_sent_at"])
+            logger.warning("Exception sending message task '%s'. Exception type: %s. Exception message: %s. Traceback:\n%s" % (self.pk, exception_type, exception_message, py_traceback))
 
-            if not success:
-                recipient_errors.append(recipient)
+            SendMailTaskExceptionLogModel.objects.create(
+                task_batch=batch,
+                exception_type=exception_type,
+                exception_message=exception_message,
+                py_traceback=py_traceback
+            )
+        else:
+            last_sent_succeed = True
 
-        result_sending = True
+        self.last_sent_at = timezone.now()
+        self.last_sent_succeed = last_sent_succeed
+        self.save(update_fields=["last_sent_at"])
 
-        num_failed_recipients = len(recipient_errors)
-        if num_failed_recipients != 0:
-            if num_failed_recipients == len(self.email_recipients):
-                result_sending = False
+        if recipients_with_errors is not None and len(recipients_with_errors) != 0:
+            for error_recipient_email, error_status in recipients_with_errors.items():
+                code, response = error_status
+                SendMailTaskLogErrorRecipientModel.objects.create(task_batch=batch, recipient=error_recipient_email, code=code, response=response)
+
+            if len(recipients_with_errors) == len(self.email_recipients):
                 if notify_failure:
                     body = _("Error sending mail!")
                 else:
@@ -1705,33 +1685,58 @@ set the attribute again to cause the underlying serialised data to be updated.""
 
                 MessageModel.objects.create(mailbox=self.mailbox, folder_id=MessageModel.INBOX_FOLDER_ID, from_email=settings.WEBMAIL_EMAIL_FOR_ERROR_NOTIFICATION, to=recipient_errors, subject=_("Error email delivery to {recipients}").format(recipients=recipient_errors_text), text_plain=body)
 
-        return result_sending
+        return last_sent_succeed
 
 
-class SendMailTaskLogModel(models.Model):
+class SendMailTaskBatchModel(models.Model):
+    # last_attempt_at
+    task = models.ForeignKey(SendMailTaskModel, db_index=True, on_delete=models.CASCADE, related_name="task_batch_list")
+    num_batch = models.PositiveIntegerField(_('Num. Batch'))
+    processed_at = models.DateTimeField(_('Processed At'), default=timezone.now)
+
+    class Meta:
+        verbose_name = _("Send Mail Task Batch")
+        verbose_name_plural = _("Send Mail Task Batches")
+
+        db_table = "webmail_sendmailtaskbatch"
+
+        unique_together = ('task', 'num_batch')
+
+        ordering = ('processed_at',)
+
+    def __str__(self):
+        return _("Task #%d batch #%d") % (self.task.id, self.num_batch)
+
+
+class SendMailTaskExceptionLogModel(models.Model):
     # fields from Message
-    task = models.ForeignKey(SendMailTaskModel, db_index=True, on_delete=models.CASCADE, related_name="logs")
-    email = models.EmailField(db_index=True)
+
+    task_batch = models.OneToOneField(SendMailTaskBatchModel, db_index=True, on_delete=models.CASCADE, related_name="exception_log")
     #exception_type = models.CharField(_('Exception type'), max_length=255, blank=True, null=True)
 
     # additional logging fields when_attempted attempted_at
-    sent_at = models.DateTimeField(default=timezone.now)
 
-    success = models.BooleanField(db_index=True)
-
-    exception_type = models.CharField(max_length=255, db_index=True, null=True, blank=True)
-    exception_message = models.TextField(null=True, blank=True)
-    py_traceback = models.TextField(null=True, blank=True)
+    exception_type = models.CharField(_("Exception Type"), max_length=255, db_index=True)
+    exception_message = models.TextField(_("Exception Message"))
+    py_traceback = models.TextField(_("Python Traceback"))
 
     class Meta:
-        ordering = ('sent_at',)
-
-        verbose_name = _("Mail Sent Log")
-        verbose_name_plural = _("Mail Sent Logs")
-        db_table = "webmail_sendmailtasklog"
+        verbose_name = _("Mail Sent Error Log")
+        verbose_name_plural = _("Mail Sent Error Logs")
+        db_table = "webmail_sendmailtaskerrorlog"
 
     def __str__(self):
-        if self.success:
-            return _("Task #%d email sent to %s") % (self.task.id, self.email)
-        else:
-            return _("Task #%d exception %s sending to %s") % (self.task.id, self.exception_type, self.email)
+        return _("Error sending emails for task batch #%d") % self.task_batch.id
+
+
+class SendMailTaskErrorRecipientModel(models.Model):
+    task_batch = models.ForeignKey(SendMailTaskBatchModel, db_index=True, on_delete=models.CASCADE, related_name="error_recipients")
+    recipient = models.EmailField(_("Recipient Email"), db_index=True)
+    code = models.PositiveIntegerField(_('Code'))
+    response = models.TextField(_('SMTP Response'))
+
+    class Meta:
+        verbose_name = _("Mail Sent Error Recipient")
+        verbose_name_plural = _("Mail Sent Error Recipients")
+        db_table = "webmail_sendmailtasklogerrorrecipient"
+

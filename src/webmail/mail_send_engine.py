@@ -122,7 +122,7 @@ def send_all(
     num_failed = 0
     num_deferred = 0
 
-    num_cancelled_no_smtp_server = 0
+    num_cancelled = 0
 
     num_tasks_processed = 0
 
@@ -163,7 +163,7 @@ def send_all(
                 try:
                     success = send_email_task.send(notify_failure=notify_failure)
                 except NoSmtpServerConfiguredException:
-                    num_cancelled_no_smtp_server += 1
+                    num_cancelled += 1
                     send_email_task.set_status_cancelled()
                     continue
 
@@ -214,7 +214,7 @@ def send_all(
     if num_tasks_processed == 0:
         logger.info("No message in the queue. No mail processed.")
     else:
-        logger.info("Mail sent resume: %d total processed; %s succeed; %d failed: %d deferred; %d cancelled.\nDone in %.2f seconds", num_tasks_processed, num_succeed, num_failed, num_deferred, num_cancelled_no_smtp_server, (time.time() - start_time))
+        logger.info("Mail sent resume: %d total processed; %s succeed; %d failed: %d deferred; %d cancelled.\nDone in %.2f seconds", num_tasks_processed, num_succeed, num_failed, num_deferred, num_cancelled, (time.time() - start_time))
 
 
 def send_all_loop(sleep_time_if_queue_empty=settings.WEBMAIL_MAILER_SLEEP_TIME_IF_QUEUE_EMPTY, **kwargs):

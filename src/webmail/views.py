@@ -18,6 +18,7 @@ from django.utils.translation import ugettext as _
 from django.utils.decorators import method_decorator
 from django.utils.formats import localize
 from django.utils.safestring import mark_safe
+from django.utils.encoding import escape_uri_path, iri_to_uri
 from django.contrib import messages as admin_messages
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
@@ -134,9 +135,12 @@ def mailbox_view_decorator(func=None, required=False):
         def wrap(request, *args, **kwargs):
             mailbox_id = None
 
+            mbox_in_query_params = False
             if "mbox" in kwargs:
                 mailbox_id = kwargs.pop("mbox")
             elif "mbox" in request.GET:
+                mbox_in_query_params = True
+
                 mailbox_id = request.GET["mbox"]
                 try:
                     mailbox_id = int(mailbox_id)
@@ -150,7 +154,27 @@ def mailbox_view_decorator(func=None, required=False):
                 request.current_mailbox = None
                 return func(request, *args, **kwargs)
             else:
-                mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=request.webmail_user)
+                if mbox_in_query_params:
+                    try:
+                        mailbox = MailboxModel.objects.get(id=mailbox_id, user=request.webmail_user)
+                    except MailboxModel.DoesNotExist:
+                        if required:
+                            raise Http404
+                        else:
+                            # Redirect to same URL but without mbox parameter
+                            params = request.GET.copy()
+                            del params["mbox"]
+
+                            query_string = params.urlencode()
+
+                            url = iri_to_uri(request._current_scheme_host + escape_uri_path(request.path_info))
+                            if query_string:
+                                url += "?" + query_string
+                            
+                            return HttpResponseRedirect(url)
+                else:
+                    mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=request.webmail_user)
+
                 request.current_mailbox = mailbox
 
                 if required:
@@ -261,6 +285,24 @@ def get_webmail_context(request, page_name=None, context=None):
 
     context["show_mailboxes_admin"] = manage_mailboxes
 
+    sidebar_links = []
+
+    if mailbox is not None:
+        mbox_links = []
+        if settings.WEBMAIL_IMPORT_MAIL_ENABLED:
+            mbox_links.append({
+                "url": reverse_webmail_url('import_mail', mailbox=mailbox),
+                "text": _("Import")
+            });
+
+        mbox_links = dispatch_hook("mbox_links", mbox_links, mailbox=mailbox, user=user)
+
+        if len(mbox_links) != 0:
+            sidebar_links.append({
+                "label": _("Mbox"), 
+                "links": mbox_links
+            })
+
     webmail_management_links = [
         {
             "url": reverse_webmail_url('profile', mailbox=mailbox),
@@ -272,12 +314,6 @@ def get_webmail_context(request, page_name=None, context=None):
         },
         # Import
     ]
-
-    if settings.WEBMAIL_IMPORT_MAIL_ENABLED:
-        webmail_management_links.append({
-            "url": reverse_webmail_url('import_mail', mailbox=mailbox),
-            "text": _("Import")
-        });
 
     if manage_mailboxes:
         webmail_management_links.insert(0,
@@ -303,9 +339,17 @@ def get_webmail_context(request, page_name=None, context=None):
             }
         )
 
-    context["webmail_management_links"] = dispatch_hook("webmail_management_links", webmail_management_links, mailbox=mailbox, user=user)
+    webmail_management_links = dispatch_hook("webmail_management_links", webmail_management_links, mailbox=mailbox, user=user)
 
-    request.session.load()
+    if len(webmail_management_links) != 0:
+        sidebar_links.append({
+            "label": _("Manage"), 
+            "links": webmail_management_links
+        })
+
+    sidebar_links = dispatch_hook("sidebar_links", sidebar_links, mailbox=mailbox, user=user)
+    context["sidebar_links"] = sidebar_links
+
     context["webmail_session_id"] = request.session.uuid.hex
 
     context = dispatch_hook("page_context", context, request=request)
@@ -1151,7 +1195,7 @@ class BulkActionView:
 
 
 MAILBOX_ACTION_SUCCESS_MESSAGE = {
-    "delete": _("<b>{{ num_mailboxes }}</b> mailbox/es deleted.")
+    "delete": [_("<b>1</b> mailbox deleted."), _("<b>{num_mailboxes}</b> mailboxes deleted.")]
 }
 
 @require_POST
@@ -1167,8 +1211,14 @@ def mailboxes_bulk_action(request):
             form.apply_action()
 
             action_name = form.cleaned_data["action_name"]
-            message_template = MAILBOX_ACTION_SUCCESS_MESSAGE[action_name]
-            message = message_template.format(num_mailboxes=form.get_obj_list_length())
+            num_mailboxes = form.get_obj_list_length()
+
+            message_template_singular, message_template_plural = MAILBOX_ACTION_SUCCESS_MESSAGE[action_name]
+            if num_mailboxes == 1:
+                message = message_template_singular
+            else:
+                message_template = message_template_plural
+                message = message_template.format(num_mailboxes=num_mailboxes)
 
             admin_messages.success(request, mark_safe(message))
     else:

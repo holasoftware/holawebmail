@@ -238,11 +238,15 @@ body {
 }
 
 
-#webmail[data-mbox-id] #webmail-management-links {
+#webmail[data-mbox-id] #sidebar-extra-links {
     margin-top: 25px;
 }
 
-#webmail-management-links > ul {
+#sidebar-extra-links .group_of_links + .group_of_links {
+    margin-top: 25px;
+}
+
+#sidebar-extra-links .group_of_links > ul {
     margin: 0;
 }
 

@@ -98,7 +98,7 @@ To fetch all emails for a specific mailboxes:
     python manage.py fetch <mailbox_name1> <mailbox_name2> ...
 Every argument is a mailbox ID or a term with the username and the mailbox name concatenated with a colon:
 
-	username:mailbox_name.
+    username:mailbox_name
 
 To send all the queued emails in one time:
 

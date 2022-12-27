@@ -6,7 +6,7 @@ from django.db.models import OuterRef, Subquery
 from django.utils.translation import ugettext as _
 
 
-from .models import WebmailUserModel, WebmailSessionModel, AccessLogModel, ContactModel, MailboxModel, Pop3MailServerModel, SmtpServerModel, TagModel, MessageModel, MessageAttachmentModel, UploadAttachmentSessionModel, SendMailTaskModel, SendMailTaskLogModel
+from .models import WebmailUserModel, WebmailSessionModel, AccessLogModel, ContactModel, MailboxModel, Pop3MailServerModel, SmtpServerModel, TagModel, MessageModel, MessageAttachmentModel, UploadAttachmentSessionModel, SendMailTaskModel, SendMailTaskBatchModel, SendMailTaskLogModel, SendMailTaskExceptionLogModel, SendMailTaskErrorRecipientModel
 
 
 
@@ -240,14 +240,11 @@ class SendMailTaskModelAdmin(admin.ModelAdmin):
         return mark_safe("<a href='%s?task=%s'>Show logs</a>" % (url, instance.id))
 
 
-class SendMailTaskLogModelAdmin(admin.ModelAdmin):
+class SendMailTaskBatchModelAdmin(admin.ModelAdmin):
     list_per_page = 10
-    list_display = ["id", "get_task_url", "success", "email", "sent_at", "exception_type", "exception_message"]
-    list_filter = ["task", "success", "exception_type"]
-    date_hierarchy = "sent_at"
-    readonly_fields = ["task", "success", "email", "sent_at", "exception_type", "exception_message", "py_traceback"]
-
-    search_fields = ['task', "exception_type", "exception_message"]
+    list_display = ["id", "get_task_url", "num_batch", "processed_at"]
+    date_hierarchy = "processed_at"
+    readonly_fields = ["task", "num_batch", "processed_at"]
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -261,7 +258,36 @@ class SendMailTaskLogModelAdmin(admin.ModelAdmin):
         change_task_url = reverse_url('admin:{}_{}_change'.format(instance._meta.app_label, instance._meta.model_name), args=(task_id,))
 
         return mark_safe("<a href='%s'>%s</a>" % (change_task_url, task_id))
+
     get_task_url.short_description = 'Task'
+
+
+class SendMailTaskExceptionLogModelAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = ["id", "task_batch", "exception_type", "exception_message"]
+    list_filter = ["exception_type"]
+    readonly_fields = ["task_batch", "exception_type", "exception_message", "py_traceback"]
+
+    search_fields = ['task_batch', "exception_type", "exception_message"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class SendMailTaskErrorRecipientModelAdmin(admin.ModelAdmin):
+    list_per_page = 10
+    list_display = ["id", "task_batch", "code", "response"]
+    list_filter = ["code"]
+    readonly_fields = ["id", "task_batch", "code", "response"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 class WebmailSessionModelAdmin(admin.ModelAdmin):
@@ -311,7 +337,9 @@ admin.site.register(MessageModel, MessageModelAdmin)
 admin.site.register(MessageAttachmentModel, MessageAttachmentModelAdmin)
 admin.site.register(UploadAttachmentSessionModel, UploadAttachmentSessionModelAdmin)
 admin.site.register(SendMailTaskModel, SendMailTaskModelAdmin)
-admin.site.register(SendMailTaskLogModel, SendMailTaskLogModelAdmin)
+admin.site.register(SendMailTaskBatchModel, SendMailTaskBatchModelAdmin)
+admin.site.register(SendMailTaskExceptionLogModel, SendMailTaskExceptionLogModelAdmin)
+admin.site.register(SendMailTaskErrorRecipientModel, SendMailTaskErrorRecipientModelAdmin)
 admin.site.register(AccessLogModel, AccessLogModelAdmin)
 admin.site.register(WebmailSessionModel, WebmailSessionModelAdmin)
 

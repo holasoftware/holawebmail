@@ -1,0 +1,17 @@
+{% load webmail i18n %}
+<div id="sidebar-extra-links">
+{% for sidebar_link_section in sidebar_links %}
+{% if sidebar_link_section.links %}
+<div class="group_of_links">
+    <span class="label">{{ sidebar_link_section.label }}:</span>
+    <ul class="links">
+    {% for link in sidebar_link_section.links %}
+    <li>
+        <a href="{{ link.url }}">{{ link.text }}</a>
+    </li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endfor %}
+</div>

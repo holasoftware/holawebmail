@@ -41,12 +41,6 @@ urlpatterns.extend([
 ])
 
 
-if settings.WEBMAIL_IMPORT_MAIL_ENABLED:
-    urlpatterns.append(
-        path('mail/import/', views.import_mail, name='import_mail'), 
-    )
-
-
 if settings.WEBMAIL_ACCESS_LOGS_ENABLED:
     urlpatterns.append(
         path('mail/access_logs/', views.AccessLogsListView.as_view(), name="access_logs"),
@@ -118,6 +112,13 @@ urlpatterns.extend([
 if settings.WEBMAIL_EMAIL_HEADERS_PAGE_ENABLED:
     urlpatterns.append(
         mailbox_url('message/<int:message_id>/headers/', views.show_mail_headers, name='email_headers'),
+    )
+
+
+
+if settings.WEBMAIL_IMPORT_MAIL_ENABLED:
+    urlpatterns.append(
+        mailbox_url('import/', views.import_mail, name='import_mail'), 
     )
 
 

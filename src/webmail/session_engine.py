@@ -13,9 +13,14 @@ class SessionStore(DjangoDbSessionStore):
         super().__init__(session_key)
 
         self.user = None
-        self.uuid = None
+        self._uuid = None
 
         self.loaded = False
+
+    @property
+    def uuid(self):
+        self.load()
+        return self._uuid
 
     def set_user(self, user):
         self.user = user
@@ -27,12 +32,12 @@ class SessionStore(DjangoDbSessionStore):
         return super().load()
 
     def _get_session_from_db(self):
-        session = super()._get_session_from_db()
-        if session is not None:
-            self.user = session.user
-            self.uuid = session.uuid
+        session_model_obj = super()._get_session_from_db()
+        if session_model_obj is not None:
+            self.user = session_model_obj.user
+            self._uuid = session_model_obj.uuid
 
-        return session
+        return session_model_obj
 
     @classmethod
     def get_model_class(cls):
