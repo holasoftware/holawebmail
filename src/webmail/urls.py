@@ -34,7 +34,7 @@ urlpatterns.extend([
     path('mail/user-profile/change-password/step1/', views.change_password_step1, name="change_password_step1"),
     path('mail/user-profile/change-password/step2/', views.change_password_step2, name="change_password_step2"),
     path('mail/contacts/', views.ContactListView.as_view(), name="contacts"),
-    path('mail/contacts/action/', views.contacts_bulk_action, name="contacts_bulk_action"),
+    path('mail/contacts/bulk-action/', views.contacts_bulk_action, name="contacts_bulk_action"),
     path('mail/contacts/add/', views.ContactCreateView.as_view(), name="contact_add"),
     path('mail/contacts/<int:contact_id>/edit/', views.ContactUpdateView.as_view(), name="contact_edit"),
     path('mail/contacts/<int:contact_id>/delete/', views.ContactDeleteView.as_view(), name="contact_delete")
@@ -56,7 +56,8 @@ if settings.WEBMAIL_CONTROL_SESSIONS_ENABLED:
 if settings.WEBMAIL_MANAGE_MAILBOXES_ENABLED:
     urlpatterns.extend([
         path('mail/mailboxes/', views.MailboxListView.as_view(), name="mailboxes"),
-        path('mail/mailboxes/action/', views.mailboxes_bulk_action, name="mailboxes_bulk_action"),
+        path('mail/mailboxes/change-default-mailbox/', views.change_default_mailbox, name="change_default_mailbox"),
+        path('mail/mailboxes/bulk-action/', views.mailboxes_bulk_action, name="mailboxes_bulk_action"),
         path('mail/mailboxes/add/', views.MailboxCreateView.as_view(), name="mailbox_add"),
         path('mail/mailboxes/<int:mailbox_id>/edit/', views.MailboxUpdateView.as_view(), name="mailbox_edit"),
         path('mail/mailboxes/<int:mailbox_id>/delete/', views.MailboxDeleteView.as_view(), name="mailbox_delete")
@@ -81,7 +82,7 @@ if settings.WEBMAIL_MANAGE_SMTP_SERVER_ENABLED:
 
 urlpatterns.extend([
     mailbox_url('folder/<folder_name>/', views.show_folder, name='show_folder'),
-    mailbox_url('folder/<folder_name>/action/', views.mails_bulk_action, name="mails_bulk_action"),
+    mailbox_url('folder/<folder_name>/bulk-action/', views.mails_bulk_action, name="mails_bulk_action"),
     mailbox_url('import-message/<int:contact_id>/', views.import_message, name='import_message'),
     mailbox_url('compose/', views.compose, name='compose'),
     mailbox_url('send/', views.mail_send, name='mail_send'),

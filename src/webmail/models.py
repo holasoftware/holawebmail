@@ -40,6 +40,7 @@ from .fields import CommaSeparatedEmailField, JSONField
 from .srp import salted_verification_key
 from .srp.srp_defaults import DEFAULT_BIT_GROUP_NUMBER
 from .logutils import get_logger
+from .exceptions import NoSmtpServerConfiguredException, InvalidEmailMessageException
 
 
 logger = get_logger()
@@ -68,14 +69,6 @@ def parse_addresses_from_header(header):
                 )[1].lower()
             )
     return addresses
-
-
-class NoSmtpServerConfiguredException(Exception):
-    pass
-
-
-class InvalidEmailMessageException(Exception):
-    pass
 
 
 class WebmailUserModelManager(models.Manager):
@@ -493,6 +486,25 @@ class Pop3MailServerModel(models.Model):
         verbose_name=_('Mailbox'),
         on_delete=models.CASCADE
     )
+    # modificar esta parte para que se puedan poner dominios ????
+    ip_address = models.GenericIPAddressField(('IP address'))
+    port = models.PositiveIntegerField(_('Port'), default=25, help_text=_("(465 with SSL)"))
+
+    username = models.CharField(_('Username'), max_length=75)
+    password = models.CharField(_('Password'), null=True, blank=True, max_length=75)
+
+    # size
+    last_polling = models.DateTimeField(
+        _("Last polling"),
+        help_text=(_("The time of last successful polling for messages."
+                     "It is blank for new mailboxes and is not set for "
+                     "mailboxes that only receive messages via a pipe.")),
+        blank=True,
+        null=True,
+        editable=False
+    )
+
+    use_ssl = models.BooleanField(_("Use SSL"), default=False)
 
     active = models.BooleanField(
         _('Active'),
@@ -506,26 +518,6 @@ class Pop3MailServerModel(models.Model):
         blank=True,
         default=True,
     )
-
-    username = models.CharField(_('Username'), max_length=75)
-    password = models.CharField(_('Password'), null=True, blank=True, max_length=75)
-
-    # modificar esta parte para que se puedan poner dominios ????
-    ip_address = models.GenericIPAddressField(('IP address'))
-    port = models.PositiveIntegerField(_('Port'), default=25, help_text=_("(465 with SSL)"))
-
-    # size
-    last_polling = models.DateTimeField(
-        _("Last polling"),
-        help_text=(_("The time of last successful polling for messages."
-                     "It is blank for new mailboxes and is not set for "
-                     "mailboxes that only receive messages via a pipe.")),
-        blank=True,
-        null=True,
-        editable=True
-    )
-
-    use_ssl = models.BooleanField(_("Use SSL"), default=False)
 
     class Meta:
         verbose_name = _('Pop3 Mail Server')
@@ -555,10 +547,13 @@ class Pop3MailServerModel(models.Model):
         if not connection:
             return
         for email_message in connection.get_message(condition):
-            # TODO: Controlar las excepciones aqui y notificarlo
-            msg = mailbox.process_incomming_email(email_message)
-            if not msg is None:
+            try:
+                msg = mailbox.process_incomming_email(email_message)
+            except InvalidEmailMessageException as e:
+                yield e
+            else:
                 yield msg
+
         self.last_polling = timezone.now()
         self.save(update_fields=['last_polling'])
 
@@ -937,7 +932,7 @@ class MessageModel(models.Model):
     def validate_email_message(email_message):
         for header_name in ["From", "To", "Subject"]:
             if header_name not in email_message:
-                raise InvalidEmailMessageException("This is header is mandatory: %s" % header_name)
+                raise InvalidEmailMessageException("This is header is mandatory: %s" % header_name, email_message)
 
     @classmethod
     def process_raw_email_message(cls, mailbox, email_message, folder_id=None, my_email_list=None):

@@ -17,9 +17,5 @@
 {% include model_form_bottom.template_name with data=model_form_bottom.data only %}
 </div>
 {% endif %}
-<div class="content-area-footer">
-    <div class="go-back-wrap">
-        <a class="go-back" href="{% if back_url %}{{ back_url }}{% else %}#{% endif %}">{% if back_url_text %}{{ back_url_text }}{% else %}{% trans "Back" %}{% endif %}</a>
-    </div>
-</div>
+<div class="go-back-link-wrap mt-4"><a class="go-back-link" href="{% if back_url %}{{ back_url }}{% else %}#{% endif %}">{% if back_url_text %}{{ back_url_text }}{% else %}{% trans "Back" %}{% endif %}</a></div>
 {% endblock %}

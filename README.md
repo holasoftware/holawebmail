@@ -20,6 +20,7 @@ Features
 - Hook system to extend easily the system
 - Multiconfigurable
 - Save mails to draft store
+- Enable or disable autodraft
 - Search text in mails
 - Add star to interesting mails
 - Show original email headers
@@ -121,6 +122,11 @@ To start the django admin:
 The settings for the django admin are here:
 
     admin/settings.py
+
+Settings
+-------------
+WEBMAIL_AUTODRAFT_ENABLED: To enable/disable the autodraft.
+WEBMAIL_UI_BRAND_NAME: Change the brand name, instead of "!Hola mail!"
 
 
 Technical notes

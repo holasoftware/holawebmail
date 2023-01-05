@@ -110,5 +110,3 @@ WEBMAIL_DEFAULT_CHARSET = getattr(django_settings, "WEBMAIL_DEFAULT_CHARSET", 'i
 
 
 WEBMAIL_EMAIL_PARSING_STRICT_POLICY = getattr(django_settings, "WEBMAIL_EMAIL_PARSING_STRICT_POLICY", False)
-
-WEBMAIL_SESSION_ENGINE = getattr(django_settings, "WEBMAIL_SESSION_ENGINE", "webmail.webmail_session_store")

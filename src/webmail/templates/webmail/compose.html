@@ -74,7 +74,8 @@
                         <button{% if button.id %} id="{{ button.id }}"{% endif %} class="btn{% if button.css_class %} {{ button.css_class }}{% endif %}">{{ button.text }}</button>
                         {% endfor %}
                         {% endif %} 
-                        <button id="draft_btn" class="btn btn-light">{% trans "Draft" %}</button> 
+                        <button id="save_draft_btn" class="btn btn-light">{% trans "Save draft" %}</button>
+                        <button id="clear_draft_btn" class="btn btn-info">{% trans "Clear draft" %}</button> 
                         <button id="discard_btn" data-url="{% mail_url 'show_folder' folder_name='inbox' %}" class="btn btn-danger">{% trans "Discard" %}</button>
                     </div>
                 </div>

@@ -7,6 +7,11 @@ body {
     padding: 0;
 }
 
+*:focus {
+    outline: 1px dotted rgb(33, 37, 41) !important;
+}
+
+
 #topbar .brand-link {
     font-size: 20px;
 }
@@ -167,16 +172,7 @@ body {
 }
 
 
-#content-area .content-area-footer {
-    margin-top: 20px;
-}
-
-/*
-#content-area .back-link-wrap {
-    text-align: right;
-}*/
-
-#content-area .go-back-wrap {
+#content-area .go-back-link-wrap {
     text-align: right;
 }
 
@@ -318,9 +314,12 @@ body {
     margin-top: 20px;
 }
 
-.info-objects .object-edit-link {
+.info-objects .object-links {
     margin-top: 5px;
-    display: inline-block;
+}
+
+.info-objects .object-link + .object-link {
+    margin-left: 5px;
 }
 
 .info-objects .object h4 {
@@ -487,6 +486,7 @@ ul.draft-list .draft-link:hover {
     padding: 0;
     height: 20px;
 }
+
 
 #webmail[data-page="folder"] #messagelist > .message .star {
     display: inline-block;

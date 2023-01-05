@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 
 from webmail.models import Pop3MailServerModel
 from webmail.logutils import get_logger
+from webmail.exceptions import InvalidEmailMessageException
 
 
 class Command(BaseCommand):
@@ -68,10 +69,13 @@ class Command(BaseCommand):
 
             try:
                 for msg_record in pop3_mail_server.get_new_mail():
-                    logger.info(
-                        'Received %s (from %s)',
-                        msg_record.subject,
-                        msg_record.from_address
-                    )
+                    if isinstance(msg_record, InvalidEmailMessageException):
+                        logger.warn("Invalid email: %s" % str(msg_record))
+                    else:
+                        logger.info(
+                            'Received %s (from %s)',
+                            msg_record.subject,
+                            msg_record.from_email
+                        )
             except OSError as exc:
                 self.stderr.write("OS Error %s: %s" % exc.args)

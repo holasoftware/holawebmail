@@ -363,16 +363,31 @@
             'tolerance': 70
         });
 
+        var slideoutOpenSetting = WEBMAIL_SESSION_ID+"slideoutOpen";
+
+        var isSlideoutOpen = global.localStorage.getItem(slideoutOpenSetting) === "1";
+        if (isSlideoutOpen){
+            slideout._opened = true;
+            slideout._translateXTo(slideout._translateTo);
+            global.document.documentElement.classList.add('slideout-open');
+        }
+
         // Toggle button
         document.querySelectorAll('.toggle-mobile-menu').forEach(function(el){
             el.addEventListener('click', function() {
                 slideout.toggle();
+                global.localStorage.setItem(slideoutOpenSetting, slideout.isOpen() === true ? "1": "");
             })
         });
 
 
         $global.resize(function(){
-            slideout.close();
+            if (slideout.isOpen()){
+                  slideout._translateXTo(0);
+                  slideout._opened = false;
+                  global.document.documentElement.classList.remove('slideout-open');
+                  global.localStorage.setItem(slideoutOpenSetting, "");
+            }
         });
 
         $(".mailbox-select-on-change").change(function(){

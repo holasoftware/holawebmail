@@ -97,12 +97,9 @@
   }
 
   var removeNotification = function(notification){
-    console.log("aquiiiiiiiiiiiiiI");
     notification.parentNode.removeChild(notification);
 
     numNotifications -= 1;
-
-    console.log("numNotifications", numNotifications)
 
     if (numNotifications === 0){
         container.parentNode.removeChild(container);

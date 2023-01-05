@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="holawebmail",
-    version="0.11",
+    version="0.12",
     description="Secure and privacy oriented webmail done with Django",
     long_description="",
     author="Miguel Martinez Lopez",

@@ -1,0 +1,12 @@
+{% extends "webmail/base.html" %}
+{% load utils i18n %}
+
+
+{% block content_area %}
+<h2>{% trans "Confirm delete" %}</h2>
+<form method="POST">
+{% csrf_token %}
+<div class="paragraph">{% if delete_confirm_message %}{{ delete_confirm_message }}{% else %}{% blocktrans with object_name=object|object_name %}Are you sure that you want to delete <b>{{ object_name }}</b>?{% endblocktrans %}{% endif %}<div class="ml-2 d-inline-block confirm-delete-buttons"><button class="btn btn-secondary">{% trans "Confirm delete" %}</button>{% if cancel_url %} <a class="btn btn-primary" href="{{ cancel_url }}">{% trans "Cancel" %}</a>{% endif %}</div>
+</form>
+{% endblock %}
+

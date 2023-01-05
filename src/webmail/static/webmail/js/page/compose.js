@@ -39,8 +39,8 @@ function compose_page_init(data){
 
     var AUTOSAVE_DELAY = data.autodraft_save_delay || 1000;
 
-    function DraftManager(draftManagerId, subjectInputEl, toInputEl, ccInputEl, bccInputEl, draftSavedEl, editor){
-        this.draftManagerId = draftManagerId || "";
+    function DraftManager(keySuffix, subjectInputEl, toInputEl, ccInputEl, bccInputEl, draftSavedEl, editor){
+        this.localStorageKey = "draft" + keySuffix;
 
         this.subjectInputEl = subjectInputEl;
         this.toInputEl = toInputEl;
@@ -48,15 +48,17 @@ function compose_page_init(data){
         this.bccInputEl = bccInputEl;
         this.draftSavedEl = draftSavedEl;
         this.editor = editor;
+
+        this.autosaveStarted = false;
     }
 
     DraftManager.prototype.clear = function(){
-        if (this.autosaveTimeoutId){
-            this.autosaveTimeoutId = null;
-            clearTimeout(this.autosaveTimeoutId);
-        }
+        localStorage.removeItem(this.localStorageKey);
+        this.draftSavedEl.innerHTML = "";
+    }
 
-        localStorage.removeItem("draft");
+    DraftManager.prototype.removeData = function(){
+        localStorage.removeItem(this.localStorageKey);
     }
 
     DraftManager.prototype.getDateSavedDraft = function(){
@@ -65,15 +67,6 @@ function compose_page_init(data){
 
         var date = new Date(draftData.timestamp);
         return date;
-    }
-
-    DraftManager.prototype.stopAutosave = function(){
-        if (this.autosaveTimeoutId){
-            clearTimeout(this.autosaveTimeoutId);
-            this.autosaveTimeoutId = null;
-
-            this.editor.off("change", this._onChangeEditor);
-        }
     }
 
     DraftManager.prototype.saveDraft = function(){
@@ -110,16 +103,26 @@ function compose_page_init(data){
 
         var value = JSON.stringify(draftData);
 
-        localStorage.setItem("draft", value);
+        localStorage.setItem(this.localStorageKey, value);
 
         var formatted_time = format_time(d, true);
 
 		this.draftSavedEl.innerHTML = data.saved_draft_at + formatted_time;
     }
 
-    DraftManager.prototype.startAutoDraft = function(){
-        if (this.autosaveTimeoutId !== null)
-            clearTimeout(this.autosaveTimeoutId);
+    DraftManager.prototype.stopAutosave = function(){
+        if (!this.autosaveStarted) return;
+
+        this.autosaveStarted = false;
+
+        clearTimeout(this.autosaveTimeoutId);
+        this.autosaveTimeoutId = null;
+        this.editor.off("change", this._onChangeEditor);
+    }
+
+    DraftManager.prototype.startAutosave = function(){
+        if (this.autosaveStarted) return;
+        this.autosaveStarted = true;
 
 		this.editor.codemirror.on("change", this._onChangeEditor.bind(this));
     }
@@ -160,20 +163,16 @@ function compose_page_init(data){
         this.editor.codemirror.setValue(draftData.body);
     }
 
-    DraftManager.prototype._getLocalStorageKey = function(){
-        return "draft" + this.draftManagerId;
-    }
-
     DraftManager.prototype.hasStoredData = function(){
-        return localStorage.getItem(this._getLocalStorageKey()) !== null;
+        return localStorage.getItem(this.localStorageKey) !== null;
     }
 
     DraftManager.prototype.deleteStoredData = function(){
-        localStorage.removeItem(this._getLocalStorageKey());
+        localStorage.removeItem(this.localStorageKey);
     }
 
     DraftManager.prototype.loadStoredData = function(){
-        var value = localStorage.getItem(this._getLocalStorageKey())
+        var value = localStorage.getItem(this.localStorageKey)
         if (value == null) return;
 
         var draftData = JSON.parse(value);
@@ -220,7 +219,7 @@ function compose_page_init(data){
         }
 
         if (data.auto_drafts){
-            draftManager.startAutoDraft();
+            draftManager.startAutosave();
         }
 
         $(toInputEl).tagator({
@@ -453,16 +452,29 @@ function compose_page_init(data){
         }
 
 
-        $('#draft_btn').click(function(e){
+        $('#save_draft_btn').click(function(e){
             draftManager.saveDraft();
             notifier.show(null, data.draft_saved_text, "success", null, true, 2200)
+            return false
+        });
+
+        $('#clear_draft_btn').click(function(e){
+            e.preventDefault();
+
+            if (draftManager.hasStoredData()){
+                draftManager.clear();
+                notifier.show(null, data.draft_cleared_text, "success", null, true, 2200);
+            } else {
+                notifier.show(null, data.no_data_saved_in_draft_text, "warning", null, true, 2200);
+            }
+
             return false
         });
 
         $('#discard_btn').click(function(e){
             e.preventDefault();
 
-            draftManager.removeDraft();
+            draftManager.removeData();
             window.location.href = $(this).data("url");
         });
     });

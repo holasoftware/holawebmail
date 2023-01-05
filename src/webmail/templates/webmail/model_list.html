@@ -3,27 +3,27 @@
 
 
 {% block content_area %}
-    <h3 class="page-title">{{ page_title }}</h3>
-
-    {% if bulk_action_url_name %}
-    <form action="{% mail_url bulk_action_url_name %}" method="POST">
-    {% csrf_token %}
-    {% endif %}
+    <h3 class="page-title">{% if page_title %}{{ page_title }}{% else %}{{ model_verbose_name_plural|capfirst }}{% endif %}</h3>
 
     <div class="obj-list">
         {% if show_object_list_controls %}
         <div class="obj-list-controls">
-            {% if add_obj_url_name %}<a class="control btn btn-primary btn-sm" href="{% mail_url add_obj_url_name %}">New {{ object_name }}</a>{% endif %}{% if page_obj.paginator.count != 0 and object_actions %}{% ifequal object_actions|length 1 %}  <button type="submit" name="action_name" value="{{ object_actions.0.action_name }}" class="control btn btn-secondary btn-sm">{{ object_actions.0.label }}</button>{% else %}<div class="actions d-inline-block ml-3"><label>{% trans "Action:" %} <select class="form-control d-inline-block w-auto" name="action_name" required=""><option value="" selected="">---------</option>{% for action in object_actions %}<option value="{{ action.action_name }}">{{ action.label }}</option>{% endfor %}</select></label> <button type="submit" class="control btn btn-secondary btn-sm" title="{% trans 'Run the selected action' %}">{% trans "Go" %}</button></div>{% endifequal %}{% endif %}
+            {% if add_obj_url_name %}<a class="control btn btn-primary btn-sm" href="{% mail_url add_obj_url_name %}">{% blocktrans with model_verbose_name=model_verbose_name|lower %}New {{ model_verbose_name }}{% endblocktrans %}</a>{% endif %}{% if page_obj.paginator.count != 0 and object_actions %}{% ifequal object_actions|length 1 %} <button type="submit" name="action_name" value="{{ object_actions.0.action_name }}" class="control btn btn-secondary btn-sm" form="{{ object_name }}-bulk-action-form">{{ object_actions.0.label }}</button>{% else %}<div class="actions d-inline-block ml-3"><label>{% trans "Action:" %} <select class="form-control d-inline-block w-auto" name="action_name" required="" form="{{ object_name }}-bulk-action-form"><option value="" selected="">---------</option>{% for action in object_actions %}<option value="{{ action.action_name }}">{{ action.label }}</option>{% endfor %}</select></label> <button type="submit" class="control btn btn-secondary btn-sm" title="{% trans 'Run the selected action' %}" form="{{ object_name }}-bulk-action-form">{% trans "Go" %}</button></div>{% endifequal %}{% if object_list_extra_controls %}{% include object_list_extra_controls.template_name with data=object_list_extra_controls.data %}{% endif %}{% endif %}
         </div>
         {% endif %}
+
         {% ifnotequal page_obj.paginator.count 0 %}
+        {% if bulk_action_url_name %}
+        <form id="{{ object_name }}-bulk-action-form" action="{% mail_url bulk_action_url_name %}" method="POST">
+        {% csrf_token %}
+        {% endif %}
             <div class="table-responsive table-obj-wrap">
                 <table id="table_obj" class="table">
                     <thead>
-                        <tr>{% if object_actions %}<th class="obj-list-checkbox-column"><input data-check-toggle="obj_list" type="checkbox" name="rowtoggle" class="action-row-toggle" /></th>{% endif %}{% if show_object_id %}<th>#</th>{% endif %}{% for header_name in table_headers %}<th>{{ header_name }}</th>{% endfor %}{% if object_is_editable %}<th></th>{% endif %}</tr>
+                        <tr>{% if object_actions %}<th class="obj-list-checkbox-column"><input data-check-toggle="obj_list" type="checkbox" name="rowtoggle" class="action-row-toggle" /></th>{% endif %}{% if show_object_id %}<th>#</th>{% endif %}{% for header_name in table_headers %}<th>{{ header_name }}</th>{% endfor %}{% if model_is_editable %}<th></th>{% endif %}</tr>
                     </thead>
                     {% for row in table_rows %}
-                    <tr>{% if object_actions %}<td><input type="checkbox" name="obj_list" class="action-checkbox" value="{{ row.id }}" /></td>{% endif %}{% if show_object_id %}<td>{% if row.obj_editable %}<a href="{% mail_url 'edit_obj' object_name=object_name obj_id=row.id %}">{{ row.id }}</a>{% else %}{{ row.id }}{% endif %}</td>{% endif %}{% for cell_data in row.cell_data_list %}<td>{{ cell_data|safe }}</td>{% endfor %}{% if object_is_editable and row.has_edit_permission %}<td><a href="{% mail_url 'edit_obj' object_name=object_name obj_id=row.id %}" class="btn btn-primary btn-sm">{% trans "Edit" %}</a></td>{% endif %}</tr>
+                    <tr>{% if object_actions %}<td><input type="checkbox" name="obj_list" class="action-checkbox" value="{{ row.id }}" /></td>{% endif %}{% if show_object_id %}<td>{% if row.obj_editable %}<a href="{% mail_url 'edit_obj' object_name=object_name obj_id=row.id %}">{{ row.id }}</a>{% else %}{{ row.id }}{% endif %}</td>{% endif %}{% for cell_data in row.cell_data_list %}<td>{{ cell_data|safe }}</td>{% endfor %}{% if model_is_editable and row.has_object_edit_permission %}<td><a href="{% mail_url 'edit_obj' object_name=object_name obj_id=row.id %}" class="btn btn-primary btn-sm">{% trans "Edit" %}</a></td>{% endif %}</tr>
                     {% endfor %}
                 </table>
             </div>
@@ -51,15 +51,15 @@
                 </ul>
             </nav>
             {% endif %}
+
+        {% if bulk_action_url_name %}
+        </form>
+        {% endif %}
         {% endifnotequal %}
     </div> <!-- /obj-list -->
-    {% if bulk_action_url_name %}
-    </form>
-    {% endif %}
 
-    <br>
     {% if back_url %}
-    <a class="pull-right" href="{{ back_url }}">{% if back_url_text %}{{ back_url_text }}{% else %}{% trans "Back" %}{% endif %}</a>
+    <div class="go-back-link-wrap mt-3"><a class="go-back-link" href="{{ back_url }}">{% if back_url_text %}{{ back_url_text }}{% else %}{% trans "Back" %}{% endif %}</a></div>
     {% endif %}
 
 {% endblock %}

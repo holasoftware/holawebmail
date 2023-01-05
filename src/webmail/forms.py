@@ -242,7 +242,7 @@ class MailboxForm(forms.ModelForm):
 
     class Meta:
         model = MailboxModel
-        fields = ('name', 'emails', 'is_default',)
+        fields = ('name', 'emails',)
         widgets = {
             'name': TextInput(attrs={"placeholder": _("Enter name of the mailbox")}),
             'emails': TextInput(attrs={"placeholder": _("List of emails associated to this mailbox")}),
@@ -254,16 +254,18 @@ class MailboxForm(forms.ModelForm):
     def save(self, commit=True):
         super().save(commit=commit)
 
-        if self.cleaned_data["is_default"]:
+        if commit and MailboxModel.objects.filter(user=self.instance.user).count() == 1:
             self.instance.set_as_default()
 
         return self.instance
 
 
 class SmtpServerForm(forms.ModelForm):
-    def __init__(self, mailbox, *args, **kwargs):
+    def __init__(self, mailbox=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instance.mailbox = mailbox
+
+        if mailbox is not None:
+            self.instance.mailbox = mailbox
 
     class Meta:
         model = SmtpServerModel
@@ -279,9 +281,10 @@ class SmtpServerForm(forms.ModelForm):
 
 
 class Pop3MailServerForm(forms.ModelForm):
-    def __init__(self, mailbox, *args, **kwargs):
+    def __init__(self, mailbox=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instance.mailbox = mailbox
+        if mailbox is not None:
+            self.instance.mailbox = mailbox
 
     class Meta:
         model = Pop3MailServerModel

@@ -99,7 +99,7 @@ def calculate_free_space(user):
 
 # TODO: Add timestamp to notifications
 
-def get_related_object_fields(instance, fields=None, exclude=None):
+def get_related_object_fields(instance, fields=None, exclude=None, format_value_dict=None):
     data = []
 
     opts = instance._meta
@@ -112,14 +112,18 @@ def get_related_object_fields(instance, fields=None, exclude=None):
         label = f.verbose_name
 
         py_value = f.value_from_object(instance)
-        if py_value is None:
-            continue
-        elif py_value is True:
-            value = _("Yes")
-        elif py_value is False:
-            value = _("No")
+
+        if format_value_dict is not None and f.name in format_value_dict:
+            value = format_value_dict[f.name](py_value)
         else:
-            value = str(py_value)
+            if py_value is None:
+                continue
+            elif py_value is True:
+                value = _("Yes")
+            elif py_value is False:
+                value = _("No")
+            else:
+                value = str(py_value)
      
         data.append({
             "label": label,
@@ -299,7 +303,7 @@ def get_webmail_context(request, page_name=None, context=None):
 
         if len(mbox_links) != 0:
             sidebar_links.append({
-                "label": _("Mbox"), 
+                "label": _("Message box"), 
                 "links": mbox_links
             })
 
@@ -443,11 +447,11 @@ class WebmailModelFormViewMixin(WebmailViewMixin):
     def get_back_url(self):
         return self.back_url
 
-    def get_action_url(self):
-        return self.action_url
-
     def get_back_url_text(self):
         return self.back_url_text
+
+    def get_action_url(self):
+        return self.action_url
 
     def get_page_name(self):
         return "%s_%s" % (self.object_name, self.object_action_name)
@@ -496,7 +500,23 @@ class WebmailUpdateView(WebmailModelFormViewMixin, UpdateView):
 
 
 class WebmailDeleteView(WebmailViewMixin, DeleteView):
-    pass
+    template_name = "webmail/confirm_delete.html"
+    cancel_url = None
+
+    def get_cancel_url(self):
+        return self.cancel_url
+
+    def get_delete_confirm_message(self):
+        pass
+
+    def get_context_data(self, **kwargs):
+        """Insert the single object into the context dict."""
+        context = {}
+
+        context["cancel_url"] = self.get_cancel_url()
+        context["delete_confirm_message"] = self.get_delete_confirm_message()
+        context.update(kwargs)
+        return super().get_context_data(**context)
 
 
 class WebmailListView(WebmailViewMixin, ListView):
@@ -512,21 +532,33 @@ class WebmailListView(WebmailViewMixin, ListView):
     object_actions = None
 
     show_object_id = True
-    object_is_editable = True
+    model_is_editable = True
 
     show_object_list_controls = True
+    extra_controls_template_name = None
 
     can_bulk_delete = True
-    allowed_to_edit_objects = True
 
-    def get_object_is_editable(self):
-        return self.object_is_editable
+    def get_extra_controls_context(self):
+        if self.extra_controls_template_name is not None:
+            return {
+                "template_name": self.extra_controls_template_name,
+                "data": self.get_extra_controls_context_data()
+            }
+        else:
+            return None
+
+    def get_extra_controls_context_data(self):
+        return None
+
+    def get_model_is_editable(self):
+        return self.model_is_editable
 
     def get_show_object_id(self):
         return self.show_object_id
 
-    def get_allowed_to_edit_object(self, obj):
-        return self.allowed_to_edit_objects
+    def is_allowed_to_edit_object(self, obj):
+        return True
 
     def get_back_url(self):
         return self.back_url
@@ -580,7 +612,8 @@ class WebmailListView(WebmailViewMixin, ListView):
         context["back_url"] = self.get_back_url()
         context["back_url_text"] = self.get_back_url_text()
         context["show_object_id"] = self.get_show_object_id()
-        context["object_is_editable"] = self.get_object_is_editable()
+        context["model_is_editable"] = self.get_model_is_editable()
+        context["object_list_extra_controls"] = self.get_extra_controls_context()
 
         if self.show_object_list_controls:
             context["show_object_list_controls"] = self.show_object_list_controls
@@ -604,6 +637,8 @@ class WebmailListView(WebmailViewMixin, ListView):
         context["page_obj"] = serialize_page_obj(page_obj)
 
         object_list = context.pop("object_list")
+        context["model_verbose_name"] = object_list.model._meta.verbose_name
+        context["model_verbose_name_plural"] = object_list.model._meta.verbose_name_plural
 
         table_rows = []
         for obj in object_list:
@@ -612,7 +647,7 @@ class WebmailListView(WebmailViewMixin, ListView):
             table_rows.append({
                 "id": obj.id,
                 "cell_data_list": [row_data[column_name] if column_name in row_data else "" for column_name in column_names],
-                "has_edit_permission": self.get_allowed_to_edit_object(obj)
+                "has_object_edit_permission": self.is_allowed_to_edit_object(obj)
             })
 
         context["table_rows"] = table_rows
@@ -780,17 +815,16 @@ class MailboxUpdateView(WebmailUpdateView):
 
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
-
-        try:
-            return MailboxModel.objects.get(id=mailbox_id, user=self.request.webmail_user)
-        except MailboxModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["user"] = self.request.webmail_user
 
         return kwargs
+
+    def format_pop3_server_last_polling(self, value):
+        return localize(value)
 
     def get_context_data(self, **kwargs):
         mailbox_id = self.kwargs["mailbox_id"]
@@ -807,8 +841,17 @@ class MailboxUpdateView(WebmailUpdateView):
             else:
                 bottom_objects.append({
                     "title": _("SMTP Server"),
-                    "fields": get_related_object_fields(smtp_server),
-                    "edit_url": self.reverse_url("smtp_server_edit", mailbox_id=mailbox_id)
+                    "fields": get_related_object_fields(smtp_server, exclude=["id", "mailbox"]),
+                    "object_links": [
+                        {
+                            "text": _("Edit"),
+                            "url": self.reverse_url("smtp_server_edit", mailbox_id=mailbox_id),
+                        },
+                        {
+                            "text": _("Delete"),
+                            "url": self.reverse_url("smtp_server_delete", mailbox_id=mailbox_id),
+                        },
+                    ]
                 })
 
         if settings.WEBMAIL_MANAGE_POP3_MAIL_SERVER_ENABLED:
@@ -820,8 +863,17 @@ class MailboxUpdateView(WebmailUpdateView):
             else:
                 bottom_objects.append({
                     "title": _("POP3 Mail Server"),
-                    "fields": get_related_object_fields(pop3_mail_server),
-                    "edit_url": self.reverse_url("pop3_mail_server_edit", mailbox_id=mailbox_id)
+                    "fields": get_related_object_fields(pop3_mail_server, exclude=["id", "mailbox"], format_value_dict={"last_polling": self.format_pop3_server_last_polling}),
+                    "object_links": [
+                        {
+                            "text": _("Edit"),
+                            "url": self.reverse_url("pop3_mail_server_edit", mailbox_id=mailbox_id),
+                        },
+                        {
+                            "text": _("Delete"),
+                            "url": self.reverse_url("pop3_mail_server_delete", mailbox_id=mailbox_id),
+                        },
+                    ]
                 })
 
         if after_form_buttons:
@@ -846,17 +898,14 @@ class MailboxUpdateView(WebmailUpdateView):
         return self.reverse_url("mailbox_delete", mailbox_id=mailbox_id)
 
 
-class MailboxDeleteView(WebmailViewMixin, DeleteView):
+class MailboxDeleteView(WebmailDeleteView):
     def get_success_url(self):
         return self.reverse_url("mailboxes")
 
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        try:
-            return MailboxModel.objects.get(id=mailbox_id, user=self.request.webmail_user)
-        except MailboxModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
 
     def delete(self, request, *args, **kwargs):
         admin_messages.success(self.request, _('Mailbox deleted!'))
@@ -881,14 +930,11 @@ class Pop3MailServerCreateView(WebmailCreateView):
 
         mailbox_id = kwargs["mailbox_id"]
 
-        try:
-            self.mailbox = MailboxModel.objects.get(id=mailbox_id, user=self.request.webmail_user)
-        except MailboxModel.DoesNotExist:
-            raise Http404
+        self.pop3_mail_server_mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["mailbox"] = self.mailbox
+        kwargs["mailbox"] = self.pop3_mail_server_mailbox
 
         return kwargs
 
@@ -916,27 +962,7 @@ class Pop3MailServerUpdateView(WebmailUpdateView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        try:
-            return Pop3MailServerModel.objects.get(mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
-        except Pop3MailServerModel.DoesNotExist:
-            raise Http404
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["mailbox"] = self.mailbox
-
-        return kwargs
-
-    # TODO: Revisar esta parte. genera errores cuando se entra a este tipo de urls
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
-
-        mailbox_id = kwargs["mailbox_id"]
-
-        try:
-            self.mailbox = MailboxModel.objects.get(id=mailbox_id, user=self.request.webmail_user)
-        except MailboxModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(Pop3MailServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def get_action_url(self):
         mailbox_id = self.kwargs["mailbox_id"]
@@ -952,7 +978,11 @@ class Pop3MailServerUpdateView(WebmailUpdateView):
         return self.reverse_url("mailbox_edit", mailbox_id=mailbox_id)
 
 
-class Pop3MailServerDeleteView(WebmailViewMixin, DeleteView):
+class Pop3MailServerDeleteView(WebmailDeleteView):
+    def get_cancel_url(self):
+        mailbox_id = self.kwargs["mailbox_id"]
+        return self.reverse_url("mailbox_edit", mailbox_id=mailbox_id)
+
     def get_success_url(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
@@ -961,10 +991,7 @@ class Pop3MailServerDeleteView(WebmailViewMixin, DeleteView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        try:
-            return Pop3MailServerModel.objects.get(mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
-        except Pop3MailServerModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(Pop3MailServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def delete(self, request, *args, **kwargs):
         admin_messages.success(self.request, _('POP3 mail server deleted!'))
@@ -989,14 +1016,11 @@ class SmtpServerCreateView(WebmailCreateView):
 
         mailbox_id = kwargs["mailbox_id"]
 
-        try:
-            self.mailbox = MailboxModel.objects.get(id=mailbox_id, user=self.request.webmail_user)
-        except MailboxModel.DoesNotExist:
-            raise Http404
+        self.smtp_server_mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["mailbox"] = self.mailbox
+        kwargs["mailbox"] = self.smtp_server_mailbox
 
         return kwargs
 
@@ -1024,27 +1048,7 @@ class SmtpServerUpdateView(WebmailUpdateView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        try:
-            return SmtpServerModel.objects.get(mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
-        except SmtpServerModel.DoesNotExist:
-            raise Http404
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs["mailbox"] = self.mailbox
-
-        return kwargs
-
-    # TODO: Revisar esta parte. genera errores cuando se entra a este tipo de urls
-    def setup(self, request, *args, **kwargs):
-        super().setup(request, *args, **kwargs)
-
-        mailbox_id = kwargs["mailbox_id"]
-
-        try:
-            self.mailbox = MailboxModel.objects.get(id=mailbox_id, user=self.request.webmail_user)
-        except MailboxModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(SmtpServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def get_action_url(self):
         mailbox_id = self.kwargs["mailbox_id"]
@@ -1060,7 +1064,11 @@ class SmtpServerUpdateView(WebmailUpdateView):
         return self.reverse_url("mailbox_edit", mailbox_id=mailbox_id)
 
 
-class SmtpServerDeleteView(WebmailViewMixin, DeleteView):
+class SmtpServerDeleteView(WebmailDeleteView):
+    def get_cancel_url(self):
+        mailbox_id = self.kwargs["mailbox_id"]
+        return self.reverse_url("mailbox_edit", mailbox_id=mailbox_id)
+
     def get_success_url(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
@@ -1069,10 +1077,7 @@ class SmtpServerDeleteView(WebmailViewMixin, DeleteView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        try:
-            return SmtpServerModel.objects.get(mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
-        except SmtpServerModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(SmtpServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def delete(self, request, *args, **kwargs):
         admin_messages.success(self.request, _('SMTP server deleted!'))
@@ -1088,6 +1093,8 @@ class MailboxListView(WebmailListView):
     object_name = "mailbox"
 
     bulk_action_url_name = "mailboxes_bulk_action"
+
+    extra_controls_template_name = "webmail/includes/mailbox_list_default_mailbox.html"
 
     columns = [
         {
@@ -1115,14 +1122,15 @@ class MailboxListView(WebmailListView):
         "name": "is_pop3_mail_server_configured",
         "label": _("POP3 server")
         # "label": _("Configured mail server")
-        },
-        {
-        "name": "is_pop3_mail_server_active",
-        "label": _("POP3 is active")
-        },
+        }
     ]
 
     back_url_text = _("Back to inbox")
+
+    def get_extra_controls_context_data(self):
+        return {
+            "mailbox_list_menu": list(MailboxModel.objects.all().values('id', 'name', 'is_default'))
+        }
 
     def get_back_url(self):
         if self.mailbox is not None:
@@ -1134,12 +1142,37 @@ class MailboxListView(WebmailListView):
 
     def get_table_row_data(self, obj):
         row_data = super().get_table_row_data(obj)
-        row_data["is_default"] = _("Yes") if row_data["is_default"] else ""
         row_data["created_at"] = localize(row_data["created_at"])
+        row_data["is_default"] = _("Yes") if row_data["is_default"] else ""
+
         row_data["is_smtp_server_configured"] = _("Yes") if row_data["is_smtp_server_configured"] else _("No")
         row_data["is_pop3_mail_server_configured"] = _("Yes") if row_data["is_pop3_mail_server_configured"] else _("No")
-        row_data["is_pop3_mail_server_active"] = _("Yes") if row_data["is_pop3_mail_server_active"] else _("No")
+
+        if obj.is_pop3_mail_server_active:
+            row_data["is_pop3_mail_server_configured"] += " (" + _("Active") + ")"
+
         return row_data
+
+
+@require_POST
+@login_required
+@mailbox_view_decorator(required=False)
+def change_default_mailbox(request):
+    if "default_mailbox_id" not in request.POST:
+        raise Http404
+
+    try:
+        default_mailbox_id = int(request.POST["default_mailbox_id"])
+    except ValueError:
+        raise Http404
+
+    mailbox = get_object_or_404(MailboxModel, id=default_mailbox_id, user=request.webmail_user)
+    mailbox.set_as_default()
+
+    mailbox_name = "#<b>%s%s</b>" % (mailbox.id, (" " + mailbox.name) if mailbox.name != "" else "")
+
+    admin_messages.success(request, mark_safe(_("Default mailbox changed to %s") % mailbox_name))
+    return redirect("mailboxes", mailbox=request.current_mailbox)
 
 
 class BulkActionView:
@@ -1236,7 +1269,7 @@ class AccessLogsListView(WebmailListView):
     title = _("Access logs")
     object_name = "access_log"
     show_object_id = False
-    object_is_editable = False
+    model_is_editable = False
 
     columns = [
         {
@@ -1502,7 +1535,7 @@ def mail_delete(request, mailbox, message_id):
 
     message.user_action_delete()
 
-    admin_messages.success(request, mark_safe(_("Message <b>%s</b> has been deleted.") % message_id))
+    admin_messages.success(request, mark_safe(_("Message #<b>%s</b> has been deleted.") % message_id))
 
     url = get_folder_url(mailbox, folder_name)
     return HttpResponseRedirect(url)
@@ -1559,14 +1592,14 @@ class UnknownAction(Http404):
 
 
 MAIL_ACTION_SUCCESS_MESSAGE = {
-    "star": _("%d message/s starred."),
-    "unstar": _("%d message/s removed stars."),
-    "mark_as_read": _("%d message/s marked as read."),
-    "mark_as_unread": _("%d message/s marked as unread."),
-    "delete_permanently": _("%d message/s deleted permanently."),
-    "spam": _("%d message/s marked as spam."),
-    "delete": _("%d message/s deleted."),
-    "mark_as_not_junk": _("%d message/s marked as Ok.")
+    "star": _("<b>%d</b> message/s starred."),
+    "unstar": _("<b>%d</b> message/s removed stars."),
+    "mark_as_read": _("<b>%d</b> message/s marked as read."),
+    "mark_as_unread": _("<b>%d</b> message/s marked as unread."),
+    "delete_permanently": _("<b>%d</b> message/s deleted permanently."),
+    "spam": _("<b>%d</b> message/s marked as spam."),
+    "delete": _("<b>%d</b> message/s deleted."),
+    "mark_as_not_junk": _("<b>%d</b> message/s marked as Ok.")
 }
 
 
@@ -1584,7 +1617,7 @@ def mails_bulk_action(request, mailbox, folder_name):
         if num_deleted == 0:
             admin_messages.error(request, _("Trash folder was already empty."))
         else:
-            admin_messages.success(request, _("Deleted %d messages.") % num_deleted)
+            admin_messages.success(request, mark_safe(_("Deleted <b>%d</b> messages.") % num_deleted))
 
     elif folder_name == "spam" and request.POST.get("action_name", None) == "delete_all_spam":
         num_updated = MessageModel.spam_folder.filter(mailbox=mailbox).update(folder_id=MessageModel.TRASH_FOLDER_ID)
@@ -1592,7 +1625,7 @@ def mails_bulk_action(request, mailbox, folder_name):
         if num_updated == 0:
             admin_messages.error(request, _("Spam folder was already empty."))
         else:
-            admin_messages.success(request, _("Deleted %d messages.") % num_updated)
+            admin_messages.success(request, mark_safe(_("Deleted <b>%d</b> messages.") % num_updated))
 
     else:
         form = MailActionForm(mailbox=mailbox, folder_name=folder_name, data=request.POST)
@@ -1610,7 +1643,7 @@ def mails_bulk_action(request, mailbox, folder_name):
                     success_template_message = MAIL_ACTION_SUCCESS_MESSAGE[action_name]
 
                     text = success_template_message % num_messages_affected
-                    admin_messages.success(request, text)
+                    admin_messages.success(request, mark_safe(text))
         else:
             print(request.POST, form.errors)
             # TODO: Especificar error
@@ -1679,6 +1712,8 @@ def render_compose_page(request, subject=None, to=None, cc=None, bcc=None, body=
 
     init_page_data["auto_drafts"] = settings.WEBMAIL_AUTODRAFT_ENABLED
     init_page_data["draft_saved_text"] = _("Draft saved!")
+    init_page_data["draft_cleared_text"] = _("Draft cleared!")
+    init_page_data["no_data_saved_in_draft_text"] = _("No data saved in draft!")
     init_page_data["saved_draft_at"] = _("Saved draft at ")
 
     if settings.WEBMAIL_AUTODRAFT_ENABLED:
@@ -2308,10 +2343,7 @@ class ContactUpdateView(ContactEditViewMixin, WebmailUpdateView):
     def get_object(self):
         contact_id = self.kwargs["contact_id"]
 
-        try:
-            return ContactModel.objects.get(id=contact_id, user=self.request.webmail_user)
-        except ContactModel.DoesNotExist:
-            raise Http404
+        return get_object_or_404(ContactModel, id=contact_id, user=self.request.webmail_user)
 
     def get_action_url(self):
         return self.reverse_url("contact_edit", contact_id=self.object.id)

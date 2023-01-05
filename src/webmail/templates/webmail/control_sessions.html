@@ -32,4 +32,6 @@
         </div>
     </div>
     {% endif %}
+    <br>
+    <a class="pull-right" href="{% mail_url 'show_folder' folder_name='inbox' %}">{% trans "Back to inbox" %}</a>
 {% endblock %}

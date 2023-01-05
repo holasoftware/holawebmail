@@ -153,3 +153,10 @@ def add_class_name(field, class_name):
 
     return field
 
+
+@register.filter
+def object_name(obj):
+    if hasattr(obj, "get_verbose_name"):
+        return obj.get_verbose_name()
+    else:
+        return "%s #%s" % (obj._meta.verbose_name, obj.id)
