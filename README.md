@@ -7,6 +7,8 @@ It's a webmail focused in privacy and cybersecurity.
 
 Privacy and cybersecurity are really hard problems nowadays. The goal of this project is to provide an ethical tool to help people to protect themshelves.
 
+Documentation and screenshots: [https://holasoftware.github.io/holawebmail_docs/](https://holasoftware.github.io/holawebmail_docs/)
+
 
 Features
 --------
