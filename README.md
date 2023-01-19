@@ -127,8 +127,9 @@ The settings for the django admin are here:
 
 Settings
 -------------
-WEBMAIL_AUTODRAFT_ENABLED: To enable/disable the autodraft.
-WEBMAIL_UI_BRAND_NAME: Change the brand name, instead of "!Hola mail!"
+*WEBMAIL_AUTODRAFT_ENABLED*: To enable/disable the autodraft.
+
+*WEBMAIL_UI_BRAND_NAME*: Change the brand name, instead of "!Hola mail!"
 
 
 Technical notes
