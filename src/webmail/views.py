@@ -2591,6 +2591,7 @@ class ProfileView(WebmailTemplateView):
 
         if self.mailbox is not None:
             kwargs["back_url"] = get_folder_url(self.mailbox, folder_name="inbox")
+            kwargs["back_url_text"] = _("Back to inbox")
 
         return super().get_context_data(**kwargs)
 

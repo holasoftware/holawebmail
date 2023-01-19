@@ -25,7 +25,7 @@
     <script type="text/javascript" src="{% static 'webmail/js/srp-client.js' %}"></script>
 
     <style>
-        form .field-error {
+        form .form-field-error {
             color: red;
         }
 
@@ -84,7 +84,7 @@
         var $registerForm = $('#register-form');
         $registerForm.on('submit', function (e) {
 
-          $registerForm.find('.field-error').remove();
+          $registerForm.find('.form-field-error').remove();
 
           var username = $registerForm.find("#input_username").val();
           var password = $registerForm.find("#input_password").val();
@@ -94,7 +94,7 @@
           var $passwordConfirm = $registerForm.find("#input_passwordconfirm");
 
           if (password !== $passwordConfirm.val()) {
-              $passwordConfirm.after("<p class='field-error'>Password doesn't match!</p>");
+              $passwordConfirm.after("<p class='form-field-error'>Password doesn't match!</p>");
               return false;
           }
 
@@ -118,7 +118,7 @@
                     var fieldName = entry[0];
                     var fieldErrorMsg = entry[1];
 
-                    $("#input_"+fieldName).after("<p class='field-error'>" + fieldErrorMsg + "</p>");
+                    $("#input_"+fieldName).after("<p class='form-field-error'>" + fieldErrorMsg + "</p>");
                 });
               }
               

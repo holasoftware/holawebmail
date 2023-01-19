@@ -8,7 +8,7 @@ body {
 }
 
 *:focus {
-    outline: 1px dotted rgb(33, 37, 41) !important;
+    outline: 1px dotted rgb(33, 37, 41);
 }
 
 
@@ -280,7 +280,7 @@ body {
     position: relative;
 }
 
-.form .field-error {
+.form .form-error, .form .form-field-error {
     color: darkred;
 }
 
@@ -441,7 +441,8 @@ ul.draft-list .draft-link:hover {
 }
 
 #webmail[data-page="folder"] #messagelist > .message.read {
-    color: #555;
+    /*color: #555;*/
+    color: #454646;
     background-color: white;
 }
 
@@ -509,12 +510,16 @@ ul.draft-list .draft-link:hover {
 }
 
 
-#webmail[data-page="folder"] #messagelist > .message .message--link {
+#webmail[data-page="folder"] #messagelist > .message > .message--link {
     color: inherit;
     text-decoration: none !important;
     display: inline-block;
     flex-grow: 1;
     padding-left: 10px;
+}
+
+#webmail[data-page="folder"] #messagelist > .message > .message--link:focus {
+    outline: none;
 }
 
 #webmail[data-page="folder"] #messagelist > .message .message--excerpt {
@@ -678,6 +683,9 @@ ul.draft-list .draft-link:hover {
     height: 29px;
 }
 
+#webmail[data-page="compose"] #compose .tagator_input:focus {
+    outline: none;
+}
 
 #webmail[data-page="email_headers"] .email-headers-list {
     list-style: none;

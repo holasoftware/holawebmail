@@ -443,7 +443,7 @@ function compose_page_init(data){
                     console.log(response);
 
                     Object.keys(response.error_data).forEach(function(key){
-                        $('<span class="field-error">' + response.error_data[key] + '</span><br>').insertAfter("#tagator_"+key);
+                        $('<span class="form-field-error">' + response.error_data[key] + '</span><br>').insertAfter("#tagator_"+key);
                     });
 
                     document.scrollingElement.scrollTop = 0;

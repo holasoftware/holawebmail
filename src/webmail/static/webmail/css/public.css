@@ -78,7 +78,7 @@ body {
 
 
 
-.public-form .field .field-error {
+.public-form .field .form-field-error {
     color: red;
     margin-top: 10px;
 }

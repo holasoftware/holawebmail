@@ -17,7 +17,7 @@ Features
 - Logging of all authentication attempts.
 - Logging control session
 - Export/Import emails
-- Hook system to extend easily the system
+- Hook system to extend easily the webmail
 - Multiconfigurable
 - Save mails to draft store
 - Enable or disable autodraft
