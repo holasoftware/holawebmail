@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 
-from .models import SendMailTaskModel, NoSmtpServerConfiguredException
+from .models import SendMailTask, NoSmtpServerConfiguredException
 from .logutils import get_logger
 from . import settings, lockfile
 
@@ -21,7 +21,7 @@ def prioritize_sending_email_tasks_ids():
     """
     Returns the messages in the queue in the order they should be sent.
     """
-    for task_data in SendMailTaskModel.objects.non_deferred().order_by('priority', 'created_at').values("id"):
+    for task_data in SendMailTask.objects.non_deferred().order_by('priority', 'created_at').values("id"):
         yield task_data["id"]
 
 
@@ -46,11 +46,11 @@ def sender_context(send_mail_task_id):
     with transaction.atomic():
         try:
             try:
-                yield SendMailTaskModel.objects.filter(id=send_mail_task_id).select_for_update(nowait=True).get()
+                yield SendMailTask.objects.filter(id=send_mail_task_id).select_for_update(nowait=True).get()
             except NotSupportedError:
                 # MySQL does not support the 'nowait' argument
-                yield SendMailTaskModel.objects.filter(id=send_mail_task_id).select_for_update().get()
-        except SendMailTaskModel.DoesNotExist:
+                yield SendMailTask.objects.filter(id=send_mail_task_id).select_for_update().get()
+        except SendMailTask.DoesNotExist:
             # Deleted by someone else
             yield None
         except OperationalError:
@@ -226,7 +226,7 @@ def send_all_loop(sleep_time_if_queue_empty=settings.WEBMAIL_MAILER_SLEEP_TIME_I
     """
 
     while True:
-        while not SendMailTaskModel.objects.all():
+        while not SendMailTask.objects.all():
             logger.debug("sleeping for %s seconds before checking queue again" % sleep_time)
             time.sleep(sleep_time_if_queue_empty)
         send_all(**kwargs)

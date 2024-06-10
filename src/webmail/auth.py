@@ -3,11 +3,10 @@ import re
 
 from django.middleware.csrf import rotate_token
 from django.utils.crypto import constant_time_compare
-from django.utils.translation import LANGUAGE_SESSION_KEY
 from django.utils import timezone
 
 
-from .models import WebmailUserModel, AnonymousUser
+from .models import WebmailUser, AnonymousUser
 from .signals import user_logged_in_signal, user_logged_out_signal, user_login_failed_signal
 from . import settings
 
@@ -19,7 +18,7 @@ AUTH_HASH_SESSION_KEY = '_auth_webmail_user_hash'
 def _get_user_session_key(request):
     # This value in the session is always serialized to a string, so we need
     # to convert it back to Python whenever we access it.
-    return WebmailUserModel._meta.pk.to_python(request.session[AUTH_SESSION_KEY])
+    return WebmailUser._meta.pk.to_python(request.session[AUTH_SESSION_KEY])
 
 
 def login(request, user):
@@ -51,7 +50,7 @@ def login(request, user):
 
     rotate_token(request)
 
-    user_logged_in_signal.send(sender=WebmailUserModel, request=request, user=user)
+    user_logged_in_signal.send(sender=WebmailUser, request=request, user=user)
 
 
 def logout(request):
@@ -62,22 +61,13 @@ def logout(request):
     # Dispatch the signal before the user is logged out so the receivers have a
     # chance to find out *who* logged out.
     user = getattr(request, 'webmail_user', None)
-    if not getattr(user, 'is_authenticated', True):
+    if not getattr(user, "is_authenticated", True):
         user = None
-
     user_logged_out_signal.send(sender=user.__class__, request=request, user=user)
-
-    # remember language choice saved to session
-    language = request.session.get(LANGUAGE_SESSION_KEY)
-
-    request.session.set_user(None)
-
     request.session.flush()
+    if hasattr(request, "webmail_user"):
+        from django.contrib.auth.models import AnonymousUser
 
-    if language is not None:
-        request.session[LANGUAGE_SESSION_KEY] = language
-
-    if hasattr(request, 'webmail_user'):
         request.webmail_user = AnonymousUser()
 
 
@@ -95,8 +85,8 @@ def get_webmail_user(request):
         pass
     else:
         try:
-            user = WebmailUserModel.objects.get(pk=user_id)
-        except WebmailUserModel.DoesNotExist:
+            user = WebmailUser.objects.get(pk=user_id)
+        except WebmailUser.DoesNotExist:
             return user
 
         # Verify the session

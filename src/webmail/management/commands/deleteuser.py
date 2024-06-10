@@ -3,7 +3,7 @@ import sys
 
 from django.core.management.base import BaseCommand
 
-from webmail.models import WebmailUserModel
+from webmail.models import WebmailUser
 
 
 class Command(BaseCommand):
@@ -17,7 +17,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, user_id, **kw):
-        num_deleted, _ = WebmailUserModel.objects.filter(id=user_id).delete()
+        num_deleted, _ = WebmailUser.objects.filter(id=user_id).delete()
 
         if num_deleted == 0:
             self.stderr.write("No user with ID: %s" % user_id)

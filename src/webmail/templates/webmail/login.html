@@ -50,13 +50,13 @@
                 <h1 class="h3 mb-3 font-weight-normal">{{ title }}</h1>
 
                 <div id="username_field" class="field">
-                    <input type="text" id="input_username" name="username"{% if username %} value="{{ username }}"{% endif %} class="form-control" placeholder="Username" required autofocus>
+                    <input type="text" id="input_username" name="username"{% if username %} value="{{ username }}"{% endif %} class="form-control" placeholder="{% trans 'Username' %}" required autofocus>
                     
                 </div>
 
                 <div id="password_field" class="field" style="position: relative">
-                    <input type="password" id="input_password" name="password" class="form-control" placeholder="Password" required style="padding-right: 70px;">
-                    <a href="#" id="show-password-link" style="position: absolute; right: 20px; top: 0.375rem;">Show</a>
+                    <input type="password" id="input_password" name="password" class="form-control" placeholder="{% trans 'Password' %}" required style="padding-right: 70px;">
+                    <a href="#" id="show-password-link" style="position: absolute; right: 20px; top: 0.375rem;">{% trans 'Show' %}</a>
                 </div>
 
                 <p id="login-error" class="error" style="display:none"></p>
@@ -99,7 +99,7 @@
     }
 
     var invalid_login = function(){
-        show_login_error("Invalid login!");
+        show_login_error("{% trans 'Invalid login!' %}");
     }
 
     $loginForm.on('submit', function(e) {
@@ -111,12 +111,12 @@
       var password = $loginForm.find("#input_password").val();
 
       if (username === ""){
-        show_login_error("Username can not be empty!");
+        show_login_error("{% trans 'Username can not be empty!' %}");
         return;
       }
 
       if (password === ""){
-        show_login_error("Password can not be empty!");
+        show_login_error("{% trans 'Password can not be empty!' %}");
         return;
       }
 

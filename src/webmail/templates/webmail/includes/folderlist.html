@@ -3,22 +3,22 @@
     <!-- Menu -->
     {% if show_folder_inbox %}
     <li class="folder nav-item">
-        <a class="nav-link{% ifequal active_folder 'inbox' %} active{% endifequal %}" href="{% mail_url 'show_folder' folder_name='inbox' %}"><i class="folder-icon fa fa-inbox"></i> {% trans "Inbox" %}{% if unread_message_count.inbox %} <span class="unreadcount float-right badge badge-pill{% ifequal active_folder 'inbox' %} badge-light{% else %} badge-secondary{% endifequal %}">{{ unread_message_count.inbox }}</span>{% endif %}</a>
+        <a class="nav-link{% if active_folder == 'inbox' %} active{% endif %}" href="{% mail_url 'show_folder' folder_name='inbox' %}"><i class="folder-icon fa fa-inbox"></i> {% trans "Inbox" %}{% if unread_message_count.inbox %} <span class="unreadcount float-right badge badge-pill{% if active_folder == 'inbox' %} badge-light{% else %} badge-secondary{% endif %}">{{ unread_message_count.inbox }}</span>{% endif %}</a>
     </li>
     {% endif %}
     {% if show_folder_sent %}
     <li class="folder nav-item">
-        <a class="nav-link{% ifequal active_folder 'sent' %} active{% endifequal %}" href="{% mail_url 'show_folder' folder_name='sent' %}"><i class="folder-icon fa fa-paper-plane"></i> {% trans "Sent" %}{% if unread_message_count.sent %} <span class="unreadcount float-right badge badge-pill{% ifequal active_folder 'sent' %} badge-light{% else %} badge-secondary{% endifequal %}">{{ unread_message_count.sent }}</span>{% endif %}</a>
+        <a class="nav-link{% if active_folder == 'sent' %} active{% endif %}" href="{% mail_url 'show_folder' folder_name='sent' %}"><i class="folder-icon fa fa-paper-plane"></i> {% trans "Sent" %}{% if unread_message_count.sent %} <span class="unreadcount float-right badge badge-pill{% if active_folder == 'sent' %} badge-light{% else %} badge-secondary{% endif %}">{{ unread_message_count.sent }}</span>{% endif %}</a>
     </li>
     {% endif %}
     {% if show_folder_spam %}
     <li class="folder nav-item">
-        <a class="nav-link{% ifequal active_folder 'spam' %} active{% endifequal %}" href="{% mail_url 'show_folder' folder_name='spam' %}"><i class="folder-icon fa fa-exclamation-triangle"></i> {% trans "Spam" %}{% if unread_message_count.spam %} <span class="unreadcount float-right badge badge-pill{% ifequal active_folder 'spam' %} badge-light{% else %} badge-secondary{% endifequal %}">{{ unread_message_count.spam }}</span>{% endif %}</a>
+        <a class="nav-link{% if active_folder == 'spam' %} active{% endif %}" href="{% mail_url 'show_folder' folder_name='spam' %}"><i class="folder-icon fa fa-exclamation-triangle"></i> {% trans "Spam" %}{% if unread_message_count.spam %} <span class="unreadcount float-right badge badge-pill{% if active_folder == 'spam' %} badge-light{% else %} badge-secondary{% endif %}">{{ unread_message_count.spam }}</span>{% endif %}</a>
     </li>
     {% endif %}
     {% if show_folder_trash %}
     <li class="folder nav-item">
-        <a class="nav-link{% ifequal active_folder 'trash' %} active{% endifequal %}" href="{% mail_url 'show_folder' folder_name='trash' %}"><i class="folder-icon fa fa-trash-o"></i> {% trans "Trash" %}{% if unread_message_count.trash %} <span class="unreadcount float-right badge badge-pill{% ifequal active_folder 'trash' %} badge-light{% else %} badge-secondary{% endifequal %}">{{ unread_message_count.trash }}</span>{% endif %}</a>
+        <a class="nav-link{% if active_folder == 'trash' %} active{% endif %}" href="{% mail_url 'show_folder' folder_name='trash' %}"><i class="folder-icon fa fa-trash-o"></i> {% trans "Trash" %}{% if unread_message_count.trash %} <span class="unreadcount float-right badge badge-pill{% if active_folder == 'trash' %} badge-light{% else %} badge-secondary{% endif %}">{{ unread_message_count.trash }}</span>{% endif %}</a>
     </li>
     {% endif %}
 </ul>

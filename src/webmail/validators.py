@@ -2,7 +2,7 @@ import re
 
 from email.utils import getaddresses
 
-from django.utils.encoding import force_text
+from django.utils.encoding import force_str
 from django.core.validators import validate_email, RegexValidator
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -28,7 +28,7 @@ def validate_email_list(value):
     if isinstance(value, (tuple, list)):
         addresses = [(None, email_address) if isinstance(email_address, str) else email_address for email_address in value]
     else:
-        value = force_text(value)
+        value = force_str(value)
         addresses = getaddresses([value])
 
     for name, email in addresses:
@@ -47,7 +47,7 @@ def validate_email_with_name(value):
 
     Both "Recipient Name <email@example.com>" and "email@example.com" are valid.
     """
-    value = force_text(value)
+    value = force_str(value)
 
     recipient = value
     if '<' and '>' in value:

@@ -43,41 +43,41 @@
         </button>
         <div class="dropdown-menu filter-messages-menu" aria-labelledby="filter_email">
             <a class="dropdown-item" href="{% mail_url 'show_folder' folder_name=active_folder %}">{% trans "All" %}</a>
-            {% ifequal filters.read True %}
+            {% if filters.read is True %}
             <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=None has_attachments=filters.has_attachments %}">{% trans "Read" %}</a>
             {% else %}
             <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=True has_attachments=filters.has_attachments %}">{% trans "Read" %}</a>
-            {% endifequal %}
+            {% endif %}
 
-            {% ifequal filters.read False %}
+            {% if filters.read is False %}
             <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=None has_attachments=filters.has_attachments %}">{% trans "Unread" %}</a>
             {% else %}
             <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=False has_attachments=filters.has_attachments %}">{% trans "Unread" %}</a>
-            {% endifequal %}
+            {% endif %}
 
-            {% ifequal filters.starred True %}
+            {% if filters.starred is True %}
             <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=None read=filters.read has_attachments=filters.has_attachments %}">{% trans "Starred" %}</a>
             {% else %}
             <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=True read=filters.read has_attachments=filters.has_attachments %}">{% trans "Starred" %}</a>
-            {% endifequal %}
+            {% endif %}
 
-            {% ifequal filters.starred False %}
+            {% if filters.starred is False %}
             <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=None read=filters.read has_attachments=filters.has_attachments %}">{% trans "Unstarred" %}</a>
             {% else %}
             <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=False read=filters.read has_attachments=filters.has_attachments %}">{% trans "Unstarred" %}</a>
-            {% endifequal %}
+            {% endif %}
 
-            {% ifequal filters.has_attachments True %}
+            {% if filters.has_attachments is True %}
             <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=None %}">{% trans "With attachments" %}</a>
             {% else %}
             <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=True %}">{% trans "With attachments" %}</a>
-            {% endifequal %}
+            {% endif %}
 
-            {% ifequal filters.has_attachments False %}
+            {% if filters.has_attachments is False %}
             <a class="dropdown-item active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=None %}">{% trans "No attachments" %}</a>
             {% else %}
             <a class="dropdown-item not-active-filter" href="{% mail_url 'show_folder' folder_name=active_folder starred=filters.starred read=filters.read has_attachments=False %}">{% trans "No attachments" %}</a>
-            {% endifequal %}
+            {% endif %}
         </div>
     </div>
 
@@ -175,6 +175,6 @@
         </div>
     {% endfor %}
 </div> <!-- /messagelist -->
-<p class="num_messages">{{ page_obj.paginator.count|default:0 }} {% ifequal page_obj.paginator.count 1 %}message{% else %}messages{% endifequal %}</p>
+<p class="num_messages">{{ page_obj.paginator.count|default:0 }} {% if page_obj.paginator.count == 1 %}message{% else %}messages{% endif %}</p>
 </form>
 {% endif %}{% endblock %}

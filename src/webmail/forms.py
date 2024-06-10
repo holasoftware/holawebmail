@@ -4,14 +4,14 @@ import re
 from django import forms
 from django.forms.widgets import HiddenInput, TextInput
 from django.forms.models import ModelMultipleChoiceField
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core import validators
 
 
-from .models import MailboxModel, SmtpServerModel, Pop3MailServerModel, MessageModel, ContactModel, WebmailUserModel
+from .models import Mailbox, SmtpServer, Pop3MailServer, Message, ContactUser, WebmailUser
 from .fields import CommaSeparatedEmailFormField
 from .signals import message_flagged_as_spam_signal, message_flagged_as_not_spam_signal
 
@@ -156,7 +156,7 @@ class ActionDeleteMixin:
 
 
 class MailboxActionForm(ActionDeleteMixin, ActionForm):
-    model = MailboxModel
+    model = Mailbox
 
     def get_query_params(self, kwargs):
         user = kwargs.pop("user")
@@ -166,7 +166,7 @@ class MailboxActionForm(ActionDeleteMixin, ActionForm):
 
 
 class ContactActionForm(ActionDeleteMixin, ActionForm):
-    model = ContactModel
+    model = ContactUser
 
     def get_query_params(self, kwargs):
         user = kwargs.pop("user")
@@ -176,11 +176,11 @@ class ContactActionForm(ActionDeleteMixin, ActionForm):
 
 
 class MailActionForm(ActionForm):
-    model = MessageModel
+    model = Message
 
     def get_query_params(self, kwargs):
         folder_name = kwargs.pop("folder_name")
-        folder_id = MessageModel.FOLDER_ID_BY_NAME[folder_name]
+        folder_id = Message.FOLDER_ID_BY_NAME[folder_name]
 
         mailbox = kwargs.pop("mailbox")
 
@@ -210,19 +210,19 @@ class MailActionForm(ActionForm):
         message.user_action_delete()
 
     def action_spam(self, message):
-        message_flagged_as_spam_signal.send(sender=MessageModel, message=message)
+        message_flagged_as_spam_signal.send(sender=Message, message=message)
         message.mark_as_spam()
 
     def action_mark_as_not_junk(self, message):
         """Mark a message as not junk."""
-        if message.folder_id == MessageModel.SPAM_FOLDER_ID:
-            message_flagged_as_not_spam_signal.send(sender=MessageModel, message=message)
+        if message.folder_id == Message.SPAM_FOLDER_ID:
+            message_flagged_as_not_spam_signal.send(sender=Message, message=message)
 
         message.mark_as_not_junk()
 
 
 class MoveForm(ActionForm):
-    destination = forms.TypedChoiceField(coerce=lambda x: int(x), choices=MessageModel.FOLDER_CHOICES)
+    destination = forms.TypedChoiceField(coerce=lambda x: int(x), choices=Message.FOLDER_CHOICES)
 
 
 class MailboxForm(forms.ModelForm):
@@ -241,7 +241,7 @@ class MailboxForm(forms.ModelForm):
         self.instance.user = user
 
     class Meta:
-        model = MailboxModel
+        model = Mailbox
         fields = ('name', 'emails',)
         widgets = {
             'name': TextInput(attrs={"placeholder": _("Enter name of the mailbox")}),
@@ -254,7 +254,7 @@ class MailboxForm(forms.ModelForm):
     def save(self, commit=True):
         super().save(commit=commit)
 
-        if commit and MailboxModel.objects.filter(user=self.instance.user).count() == 1:
+        if commit and Mailbox.objects.filter(user=self.instance.user).count() == 1:
             self.instance.set_as_default()
 
         return self.instance
@@ -268,7 +268,7 @@ class SmtpServerForm(forms.ModelForm):
             self.instance.mailbox = mailbox
 
     class Meta:
-        model = SmtpServerModel
+        model = SmtpServer
         fields = ('ip_address', 'port', 'username', 'password', 'use_ssl', 'from_email', 'from_name',)
         widgets = {
             'ip_address': TextInput(attrs={"placeholder": _("Enter IP or domain name of SMTP server")}),
@@ -276,7 +276,7 @@ class SmtpServerForm(forms.ModelForm):
             'username': TextInput(attrs={"placeholder": _("Username")}),
             'password': TextInput(attrs={"placeholder": _("Password")}),
             'from_email': TextInput(attrs={"placeholder": _("From email header field")}),
-            'from_name': TextInput(attrs={"placeholder": _("From email header field")}),
+            'from_name': TextInput(attrs={"placeholder": _("From name header field")}),
         }
 
 
@@ -287,7 +287,7 @@ class Pop3MailServerForm(forms.ModelForm):
             self.instance.mailbox = mailbox
 
     class Meta:
-        model = Pop3MailServerModel
+        model = Pop3MailServer
         fields = ('ip_address', 'port', 'username', 'password', 'use_ssl', 'active')
         widgets = {
             'ip_address': TextInput(attrs={"placeholder": _("Enter IP or domain name of POP3 server")}),
@@ -320,7 +320,7 @@ class ComposeMailForm(forms.Form):
     # TODO: Mejorar esta parte
     def __init__(self, mailbox, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["in_reply_to"].queryset = MessageModel.objects.filter(mailbox=mailbox)
+        self.fields["in_reply_to"].queryset = Message.objects.filter(mailbox=mailbox)
 
 
 class AttachmentForm(forms.Form):
@@ -344,7 +344,7 @@ class AttachmentForm(forms.Form):
 
 class ContactForm(ExtraFormsMixin, forms.ModelForm):
     class Meta:
-        model = ContactModel
+        model = ContactUser
         fields = ('displayed_name', 'email')
 
     def __init__(self, *args, **kwargs):
@@ -363,7 +363,7 @@ class UsernameForm(forms.ModelForm):
     )
 
     class Meta:
-        model = WebmailUserModel
+        model = WebmailUser
         fields = ["username"]
 
     def clean_username(self):
@@ -405,21 +405,21 @@ class SignUpForm(forms.ModelForm):
     A form that creates a user from the given username, verifier, salt and srp group.
     """
     class Meta:
-        model = WebmailUserModel
+        model = WebmailUser
         fields = ("username", "verifier", "salt", "srp_group")
 
     def clean_username(self):
         username = self.cleaned_data["username"]
         try:
-            WebmailUserModel.objects.get(username=username)
-        except WebmailUserModel.DoesNotExist:
+            WebmailUser.objects.get(username=username)
+        except WebmailUser.DoesNotExist:
             return username
         raise forms.ValidationError(_("A user with that username already exists."))
 
 
 class SRPUserInfoForm(forms.ModelForm):
     class Meta:
-        model = WebmailUserModel
+        model = WebmailUser
         fields = ("verifier", "salt", "srp_group")
 
 

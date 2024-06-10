@@ -1,7 +1,7 @@
 from django.forms.widgets import Textarea
 from django.core.exceptions import ValidationError
 from django.core import validators
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 
 MULTI_EMAIL_FIELD_EMPTY_VALUES = validators.EMPTY_VALUES + ('[]', )

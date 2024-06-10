@@ -8,11 +8,11 @@
     <div class="obj-list">
         {% if show_object_list_controls %}
         <div class="obj-list-controls">
-            {% if add_obj_url_name %}<a class="control btn btn-primary btn-sm" href="{% mail_url add_obj_url_name %}">{% blocktrans with model_verbose_name=model_verbose_name|lower %}New {{ model_verbose_name }}{% endblocktrans %}</a>{% endif %}{% if page_obj.paginator.count != 0 and object_actions %}{% ifequal object_actions|length 1 %} <button type="submit" name="action_name" value="{{ object_actions.0.action_name }}" class="control btn btn-secondary btn-sm" form="{{ object_name }}-bulk-action-form">{{ object_actions.0.label }}</button>{% else %}<div class="actions d-inline-block ml-3"><label>{% trans "Action:" %} <select class="form-control d-inline-block w-auto" name="action_name" required="" form="{{ object_name }}-bulk-action-form"><option value="" selected="">---------</option>{% for action in object_actions %}<option value="{{ action.action_name }}">{{ action.label }}</option>{% endfor %}</select></label> <button type="submit" class="control btn btn-secondary btn-sm" title="{% trans 'Run the selected action' %}" form="{{ object_name }}-bulk-action-form">{% trans "Go" %}</button></div>{% endifequal %}{% if object_list_extra_controls %}{% include object_list_extra_controls.template_name with data=object_list_extra_controls.data %}{% endif %}{% endif %}
+            {% if add_obj_url_name %}<a class="control btn btn-primary btn-sm" href="{% mail_url add_obj_url_name %}">{% blocktrans with model_verbose_name=model_verbose_name|lower %}New {{ model_verbose_name }}{% endblocktrans %}</a>{% endif %}{% if page_obj.paginator.count != 0 and object_actions %}{% if object_actions|length == 1 %} <button type="submit" name="action_name" value="{{ object_actions.0.action_name }}" class="control btn btn-secondary btn-sm" form="{{ object_name }}-bulk-action-form">{{ object_actions.0.label }}</button>{% else %}<div class="actions d-inline-block ml-3"><label>{% trans "Action:" %} <select class="form-control d-inline-block w-auto" name="action_name" required="" form="{{ object_name }}-bulk-action-form"><option value="" selected="">---------</option>{% for action in object_actions %}<option value="{{ action.action_name }}">{{ action.label }}</option>{% endfor %}</select></label> <button type="submit" class="control btn btn-secondary btn-sm" title="{% trans 'Run the selected action' %}" form="{{ object_name }}-bulk-action-form">{% trans "Go" %}</button></div>{% endif %}{% if object_list_extra_controls %}{% include object_list_extra_controls.template_name with data=object_list_extra_controls.data %}{% endif %}{% endif %}
         </div>
         {% endif %}
 
-        {% ifnotequal page_obj.paginator.count 0 %}
+        {% if page_obj.paginator.count != 0 %}
         {% if bulk_action_url_name %}
         <form id="{{ object_name }}-bulk-action-form" action="{% mail_url bulk_action_url_name %}" method="POST">
         {% csrf_token %}
@@ -55,7 +55,7 @@
         {% if bulk_action_url_name %}
         </form>
         {% endif %}
-        {% endifnotequal %}
+        {% endif %}
     </div> <!-- /obj-list -->
 
     {% if back_url %}

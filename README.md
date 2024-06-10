@@ -36,7 +36,7 @@ Requirements
 
 * Python 3
 
-* Django >= 2.1
+* Django >= 4
 
 
 
@@ -77,20 +77,27 @@ These are the required middlewares:
 
 
 Run database migrations to set up the needed database tables.
+    
+    python manage.py migrate
 
 To add testing data and see the application running in a demo:
 
     python manage.py testdata
-
-or use `python manage.py init` to migrate, add test data and add optionally create the root user. For example:
-
-    python manage.py init
 
 Credentials for the demo:
 
     username:test
     password:test
 
+Create a super user:
+
+    python manage.py createsuperuser
+
+To start the application:
+
+    python manage.py runserver
+
+The application is served in the root path `/` and the django admin in `/admin/`.
 
 To fetch all emails from all active POP3 servers:
 
@@ -115,18 +122,9 @@ To purge old tasks that are completed or cancelled:
 
     python manage.py purgeoldsendmailtasks
 
-The django admin should be run independently for a better isolation.
-
-To start the django admin:
-
-    python runadmin.py
-
-The settings for the django admin are here:
-
-    admin/settings.py
 
 Settings
--------------
+--------
 *WEBMAIL_AUTODRAFT_ENABLED*: To enable/disable the autodraft.
 
 *WEBMAIL_UI_BRAND_NAME*: Change the brand name, instead of "!Hola mail!"
@@ -137,11 +135,10 @@ Technical notes
 The user login using SRP authentication without never sending the password on the wire. 
     https://wikipedia.org/wiki/Secure_Remote_Password_protocol
 
-The django admin app should be run in a different port (or in a different machine) than the webmail. Set different cookie names for security reasons. The tables for the webmail users and the django admin staff are different. This makes possible to use multiple databases in the webmail to store the table related to the credentials in django admin staff and the webmail. The way of doing this is using the `DATABASE` setting to define multiple databases and a routing scheme in `DATABASE_ROUTERS` to provide a different database name for the model `AUTH_USER_MODEL` and another one for the model  `webmail.models.WebmailUserModel`.
+For better security and isolation of the session cookies, the recommendation is to run the django admin in a different origin than the webmail application or in case of using the same origin, run a different process for the django admin with a different cookie session name setting (just change the environment variable `APP` to a different value for example. See the file `app/settings.py`). The tables for the webmail users and the django admin staff are different. This makes possible to use different databases for the django user credentials and the user of the webmail and any data related to the webmail application. The way to do this is using the `DATABASE` setting to define multiple databases and a routing scheme in `DATABASE_ROUTERS` to provide a different database name for the model `AUTH_USER_MODEL` and another one for the models of the webmail like for example `webmail.models.WebmailUser`.
 
 By design, the code use minimal dependencies as possible to avoid more points of attack. 
 
 The webmail process in the background an asyncronous task for getting and processing emails from a POP3 email server, and another task for sending all the enqueed emails stored in the database.
 
 File attachments are also temporarily stored in the database, which means if you are sending files larger than several hundred KB in size, you are likely to run into database limitations on how large your query can be. If this happens, you'll either need to increase your database limits (a procedure that depends on which database you are using).
-

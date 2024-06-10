@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 
 from django.http.response import JsonResponse, FileResponse, HttpResponseRedirect, HttpResponseNotAllowed, Http404
 from django.shortcuts import render, get_object_or_404
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext as _
 from django.utils.decorators import method_decorator
 from django.utils.formats import localize
 from django.utils.safestring import mark_safe
@@ -42,7 +42,7 @@ from django.forms.models import model_to_dict
 from .auth_decorators import login_required
 from .auth import login as auth_login, logout as auth_logout, update_session_auth_hash
 from .srp import Verifier as SRP_Verifier, gN
-from .models import MailboxModel, SmtpServerModel, Pop3MailServerModel, MessageModel, MessageAttachmentModel, TagModel, UploadAttachmentSessionModel, ContactModel, WebmailUserModel, UnknownFolderException, AccessLogModel, InvalidEmailMessageException, WebmailSessionModel
+from .models import Mailbox, SmtpServer, Pop3MailServer, Message, MessageAttachment, MessageTag, UploadAttachmentSession, ContactUser, WebmailUser, UnknownFolderException, AccessLog, InvalidEmailMessageException, WebmailSession
 from .signals import file_attachment_uploaded_signal, attachment_downloaded_signal, message_flagged_as_spam_signal, message_flagged_as_not_spam_signal, message_queued_signal, attachments_uploaded_signal, user_logged_in_signal
 from .forms import MailActionForm, ComposeMailForm, MailboxForm, Pop3MailServerForm, MailboxActionForm, ContactForm, ContactActionForm, UsernameForm, SignUpForm, SRPUserInfoForm, SmtpServerForm
 #from .email_signature import EmailSignature
@@ -160,8 +160,8 @@ def mailbox_view_decorator(func=None, required=False):
             else:
                 if mbox_in_query_params:
                     try:
-                        mailbox = MailboxModel.objects.get(id=mailbox_id, user=request.webmail_user)
-                    except MailboxModel.DoesNotExist:
+                        mailbox = Mailbox.objects.get(id=mailbox_id, user=request.webmail_user)
+                    except Mailbox.DoesNotExist:
                         if required:
                             raise Http404
                         else:
@@ -177,7 +177,7 @@ def mailbox_view_decorator(func=None, required=False):
                             
                             return HttpResponseRedirect(url)
                 else:
-                    mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=request.webmail_user)
+                    mailbox = get_object_or_404(Mailbox, id=mailbox_id, user=request.webmail_user)
 
                 request.current_mailbox = mailbox
 
@@ -200,30 +200,30 @@ def get_message_or_404(mailbox, message_id):
     except ValueError:
         raise Http404
 
-    message = get_object_or_404(MessageModel, id=message_id, mailbox=mailbox)
+    message = get_object_or_404(Message, id=message_id, mailbox=mailbox)
     return message    
 
 
 def get_unread_message_count(mailbox):
     unread = {}
 
-    for folder_name, folder_id in MessageModel.FOLDER_ID_BY_NAME.items():
-        unread[folder_name] = MessageModel.unread_messages.filter(folder_id=folder_id, mailbox=mailbox).count()
+    for folder_name, folder_id in Message.FOLDER_ID_BY_NAME.items():
+        unread[folder_name] = Message.unread_messages.filter(folder_id=folder_id, mailbox=mailbox).count()
 
     return unread
 
 
 def get_default_mailbox(user):
-    default_mailbox = MailboxModel.objects.filter(user=user, is_default=True).first()
+    default_mailbox = Mailbox.objects.filter(user=user, is_default=True).first()
 
     if default_mailbox is None:
-        default_mailbox = MailboxModel.objects.filter(user=user).order_by("name").first()
+        default_mailbox = Mailbox.objects.filter(user=user).order_by("name").first()
     
     return default_mailbox 
 
 
 def get_contact_emails(user):
-    return list(ContactModel.objects.values_list('email',flat=True).filter(user=user))
+    return list(ContactUser.objects.values_list('email',flat=True).filter(user=user))
 
 
 def get_webmail_context(request, page_name=None, context=None):
@@ -258,7 +258,7 @@ def get_webmail_context(request, page_name=None, context=None):
 
         context["show_compose_btn"] = settings.WEBMAIL_UI_SHOW_COMPOSE_BTN
 
-    mailbox_menu = MailboxModel.objects.filter(user=request.webmail_user).values("id", "name", "is_default")
+    mailbox_menu = Mailbox.objects.filter(user=request.webmail_user).values("id", "name", "is_default")
 
     context["url_patterns_string_formats"] = get_url_patterns_string_formats()
 
@@ -712,8 +712,8 @@ def autologin(request, username):
         raise Http404
 
     try:
-        user = WebmailUserModel.objects.get(username=username)
-    except WebmailUserModel.DoesNotExist:
+        user = WebmailUser.objects.get(username=username)
+    except WebmailUser.DoesNotExist:
         raise Http404
 
     auth_login(request, user)
@@ -743,7 +743,7 @@ def mailboxes(request):
         page_num = 1
 
     
-    query = MailboxModel.objects.filter(user=request.webmail_user)
+    query = Mailbox.objects.filter(user=request.webmail_user)
     if query.count() == 0:
         return self.reverse_url("mailbox_add")
 
@@ -815,7 +815,7 @@ class MailboxUpdateView(WebmailUpdateView):
 
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
-        return get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
+        return get_object_or_404(Mailbox, id=mailbox_id, user=self.request.webmail_user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -836,7 +836,7 @@ class MailboxUpdateView(WebmailUpdateView):
             try:
                 smtp_server = self.object.smtp_server
     #        except AttributeError:
-            except SmtpServerModel.DoesNotExist:
+            except SmtpServer.DoesNotExist:
                 after_form_buttons += '<a style="margin-left:8px" href="' + self.reverse_url('smtp_server_add', mailbox_id=mailbox_id) + '">' + _("Add SMTP server") + '</a>'
             else:
                 bottom_objects.append({
@@ -858,7 +858,7 @@ class MailboxUpdateView(WebmailUpdateView):
             try:
                 pop3_mail_server = self.object.pop3_mail_server
     #        except AttributeError:
-            except Pop3MailServerModel.DoesNotExist:
+            except Pop3MailServer.DoesNotExist:
                 after_form_buttons += '<a style="margin-left:8px" href="' + self.reverse_url('pop3_mail_server_add', mailbox_id=mailbox_id) + '">' + _("Add POP3 mail server") + '</a>'
             else:
                 bottom_objects.append({
@@ -905,7 +905,7 @@ class MailboxDeleteView(WebmailDeleteView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        return get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
+        return get_object_or_404(Mailbox, id=mailbox_id, user=self.request.webmail_user)
 
     def delete(self, request, *args, **kwargs):
         admin_messages.success(self.request, _('Mailbox deleted!'))
@@ -930,7 +930,7 @@ class Pop3MailServerCreateView(WebmailCreateView):
 
         mailbox_id = kwargs["mailbox_id"]
 
-        self.pop3_mail_server_mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
+        self.pop3_mail_server_mailbox = get_object_or_404(Mailbox, id=mailbox_id, user=self.request.webmail_user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -962,7 +962,7 @@ class Pop3MailServerUpdateView(WebmailUpdateView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        return get_object_or_404(Pop3MailServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
+        return get_object_or_404(Pop3MailServer, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def get_action_url(self):
         mailbox_id = self.kwargs["mailbox_id"]
@@ -991,7 +991,7 @@ class Pop3MailServerDeleteView(WebmailDeleteView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        return get_object_or_404(Pop3MailServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
+        return get_object_or_404(Pop3MailServer, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def delete(self, request, *args, **kwargs):
         admin_messages.success(self.request, _('POP3 mail server deleted!'))
@@ -1016,7 +1016,7 @@ class SmtpServerCreateView(WebmailCreateView):
 
         mailbox_id = kwargs["mailbox_id"]
 
-        self.smtp_server_mailbox = get_object_or_404(MailboxModel, id=mailbox_id, user=self.request.webmail_user)
+        self.smtp_server_mailbox = get_object_or_404(Mailbox, id=mailbox_id, user=self.request.webmail_user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -1048,7 +1048,7 @@ class SmtpServerUpdateView(WebmailUpdateView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        return get_object_or_404(SmtpServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
+        return get_object_or_404(SmtpServer, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def get_action_url(self):
         mailbox_id = self.kwargs["mailbox_id"]
@@ -1077,7 +1077,7 @@ class SmtpServerDeleteView(WebmailDeleteView):
     def get_object(self):
         mailbox_id = self.kwargs["mailbox_id"]
 
-        return get_object_or_404(SmtpServerModel, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
+        return get_object_or_404(SmtpServer, mailbox__id=mailbox_id, mailbox__user=self.request.webmail_user)
 
     def delete(self, request, *args, **kwargs):
         admin_messages.success(self.request, _('SMTP server deleted!'))
@@ -1087,7 +1087,7 @@ class SmtpServerDeleteView(WebmailDeleteView):
 
 
 class MailboxListView(WebmailListView):
-    model = MailboxModel
+    model = Mailbox
 
     title = _("List of mailboxes")
     object_name = "mailbox"
@@ -1129,7 +1129,7 @@ class MailboxListView(WebmailListView):
 
     def get_extra_controls_context_data(self):
         return {
-            "mailbox_list_menu": list(MailboxModel.objects.all().values('id', 'name', 'is_default'))
+            "mailbox_list_menu": list(Mailbox.objects.all().values('id', 'name', 'is_default'))
         }
 
     def get_back_url(self):
@@ -1166,7 +1166,7 @@ def change_default_mailbox(request):
     except ValueError:
         raise Http404
 
-    mailbox = get_object_or_404(MailboxModel, id=default_mailbox_id, user=request.webmail_user)
+    mailbox = get_object_or_404(Mailbox, id=default_mailbox_id, user=request.webmail_user)
     mailbox.set_as_default()
 
     mailbox_name = "#<b>%s%s</b>" % (mailbox.id, (" " + mailbox.name) if mailbox.name != "" else "")
@@ -1264,7 +1264,7 @@ def mailboxes_bulk_action(request):
 
 
 class AccessLogsListView(WebmailListView):
-    model = AccessLogModel
+    model = AccessLog
 
     title = _("Access logs")
     object_name = "access_log"
@@ -1326,7 +1326,7 @@ def show_folder(request, mailbox, folder_name="inbox"):
     else:
         page_num = 1
 
-    folder_id = MessageModel.FOLDER_ID_BY_NAME.get(folder_name, None)
+    folder_id = Message.FOLDER_ID_BY_NAME.get(folder_name, None)
     if folder_id is None:
         raise Http404("Invalid folder name:" + folder_name)
 
@@ -1388,7 +1388,7 @@ def show_folder(request, mailbox, folder_name="inbox"):
             filters["has_attachments"] = False
             Q_objects.append(Q(attachments__isnull=True))
 
-    obj_results = MessageModel.objects.filter(*Q_objects) 
+    obj_results = Message.objects.filter(*Q_objects) 
     paginator = Paginator(obj_results, settings.WEBMAIL_UI_MESSAGE_LIST_PAGE_SIZE, allow_empty_first_page=False)
 
     try:
@@ -1459,7 +1459,7 @@ def mark_as_unread(request, mailbox, message_id):
 def mark_as_spam(request, mailbox, message_id):
     message = get_message_or_404(mailbox, message_id)
 
-    message_flagged_as_spam_signal.send(sender=MessageModel, message=message)
+    message_flagged_as_spam_signal.send(sender=Message, message=message)
     message.mark_as_spam()
 
     admin_messages.success(request, _("Message marked as spam."))
@@ -1476,8 +1476,8 @@ def mark_as_not_junk(request, mailbox, message_id):
     """Mark a message as not junk."""
     message = get_message_or_404(mailbox, message_id)
 
-    if message.folder_id == MessageModel.SPAM_FOLDER_ID:
-        message_flagged_as_not_spam_signal.send(sender=MessageModel, message=message)
+    if message.folder_id == Message.SPAM_FOLDER_ID:
+        message_flagged_as_not_spam_signal.send(sender=Message, message=message)
 
     message.mark_as_not_junk()
 
@@ -1491,7 +1491,7 @@ def mark_as_not_junk(request, mailbox, message_id):
 @ajax(login_required=True, require_POST=True)
 @mailbox_view_decorator(required=True)
 def delete_all_spam(request, mailbox):
-    num_messages = MessageModel.spam_folder.filter(mailbox=mailbox).update(folder_id=MessageModel.TRASH_FOLDER_ID)
+    num_messages = Message.spam_folder.filter(mailbox=mailbox).update(folder_id=Message.TRASH_FOLDER_ID)
 
     return {
         "num_messages": num_messages
@@ -1501,7 +1501,7 @@ def delete_all_spam(request, mailbox):
 @ajax(login_required=True, require_POST=True)
 @mailbox_view_decorator(required=True)
 def empty_trash(request, mailbox):
-    num_messages, _not_important = MessageModel.trash_folder.filter(mailbox=mailbox).delete()
+    num_messages, _not_important = Message.trash_folder.filter(mailbox=mailbox).delete()
 
     return {
         "num_messages": num_messages
@@ -1607,12 +1607,12 @@ MAIL_ACTION_SUCCESS_MESSAGE = {
 @login_required
 @mailbox_view_decorator(required=True)
 def mails_bulk_action(request, mailbox, folder_name):
-    if folder_name not in MessageModel.FOLDER_NAMES:
+    if folder_name not in Message.FOLDER_NAMES:
         raise Http404
 
     if folder_name == "trash" and request.POST.get("action_name", None) == "empty_trash":
-        MessageModel.trash_folder.filter(mailbox=mailbox).delete()
-        num_deleted, _not_important = MessageModel.trash_folder.filter(mailbox=mailbox).delete()
+        Message.trash_folder.filter(mailbox=mailbox).delete()
+        num_deleted, _not_important = Message.trash_folder.filter(mailbox=mailbox).delete()
 
         if num_deleted == 0:
             admin_messages.error(request, _("Trash folder was already empty."))
@@ -1620,7 +1620,7 @@ def mails_bulk_action(request, mailbox, folder_name):
             admin_messages.success(request, mark_safe(_("Deleted <b>%d</b> messages.") % num_deleted))
 
     elif folder_name == "spam" and request.POST.get("action_name", None) == "delete_all_spam":
-        num_updated = MessageModel.spam_folder.filter(mailbox=mailbox).update(folder_id=MessageModel.TRASH_FOLDER_ID)
+        num_updated = Message.spam_folder.filter(mailbox=mailbox).update(folder_id=Message.TRASH_FOLDER_ID)
 
         if num_updated == 0:
             admin_messages.error(request, _("Spam folder was already empty."))
@@ -1769,7 +1769,7 @@ def show_mail_headers(request, mailbox, message_id):
 def mail_send(request, mailbox):
     try:
         smtp_server = mailbox.smtp_server
-    except SmtpServerModel.DoesNotExist:
+    except SmtpServer.DoesNotExist:
         raise AJAXError(error_description=_("Not possible to send message because no smtp server configured"), error_code="NoSmtpServerConfigured")
 
     form = ComposeMailForm(mailbox, request.POST)
@@ -1779,15 +1779,15 @@ def mail_send(request, mailbox):
 
     if form.cleaned_data.get("in_reply_to") is not None:
         try:
-           message_in_reply_to = MessageModel.objects.get(mailbox=mailbox, pk=in_reply_to_id)
-        except MessageModel.DoesNotExist:
+           message_in_reply_to = Message.objects.get(mailbox=mailbox, pk=in_reply_to_id)
+        except Message.DoesNotExist:
             raise Http404
     else:
         message_in_reply_to = None
 
     text_plain = form.cleaned_data.get("body", None)
 
-    message = MessageModel(
+    message = Message(
         mailbox=mailbox,
         subject=form.cleaned_data["subject"],
         from_email=smtp_server.get_from_email_header_value(),
@@ -1802,7 +1802,7 @@ def mail_send(request, mailbox):
     if form.cleaned_data["has_attachments"]:
         message.save()
 
-        upload_session = UploadAttachmentSessionModel.objects.create(message_obj_reference=message)
+        upload_session = UploadAttachmentSession.objects.create(message_obj_reference=message)
 
         attachment_upload_url = reverse_webmail_url("attachment_upload", kwargs={"upload_session_id": upload_session.uuid.hex}, mailbox=mailbox)
         finnished_attachments_session_url = reverse_webmail_url("finnished_attachments_session", kwargs={"upload_session_id": upload_session.uuid.hex}, mailbox=mailbox)
@@ -1815,7 +1815,7 @@ def mail_send(request, mailbox):
     else:
         message.dispatch()
 
-        message_queued_signal.send(sender=MessageModel, message=message)
+        message_queued_signal.send(sender=Message, message=message)
 
         return {
             "message_id": message.id,
@@ -1929,18 +1929,18 @@ def deserialize_message(serialized_message):
 @mailbox_view_decorator(required=True)
 def import_message(request, mailbox, contact_id):
     try:
-        contact = ContactModel.objects.get(id=contact_id, user=request.webmail_user)
-    except ContactModel.DoesNotExist:
+        contact = ContactUser.objects.get(id=contact_id, user=request.webmail_user)
+    except ContactUser.DoesNotExist:
         raise Http404
 
     serialized_message = request.body
 
     message_data = deserialize_message(serialized_message)
 
-    message = MessageModel(
+    message = Message(
         mailbox=mailbox,
         subject=message_data["subject"],
-        folder_id=MessageModel.INBOX_FOLDER_ID,
+        folder_id=Message.INBOX_FOLDER_ID,
         imported=True,
         from_email=contact.email,
         to=mailbox.from_email,
@@ -1953,7 +1953,7 @@ def import_message(request, mailbox, contact_id):
         for file_attachment in message_data["file_attachments"]:
             attachment_mimetype = mimetypes.guess_type(file_attachment["name"])[0]
 
-            MessageAttachmentModel.objects.create(file=ContentFile(file_attachment["file_data"], file_attachment["name"]), file_name=file_attachment["name"], mimetype=attachment_mimetype, message=message)
+            MessageAttachment.objects.create(file=ContentFile(file_attachment["file_data"], file_attachment["name"]), file_name=file_attachment["name"], mimetype=attachment_mimetype, message=message)
 
     return {
         "message_id": message.id
@@ -1966,8 +1966,8 @@ def reply(request, mailbox, message_id):
     message = get_message_or_404(mailbox, message_id)
 
     try:
-        contact = ContactModel.objects.get(user=request.webmail_user, email=message.from_email)
-    except ContactModel.DoesNotExist:
+        contact = ContactUser.objects.get(user=request.webmail_user, email=message.from_email)
+    except ContactUser.DoesNotExist:
         sender_name = None
     else:
         sender_name = contact.displayed_name
@@ -1985,8 +1985,8 @@ def reply_all(request, mailbox, message_id):
     message = get_message_or_404(mailbox, message_id)
 
     try:
-        sender_name = ContactModel.objects.get(user=request.webmail_user, email=message.from_email)
-    except ContactModel.DoesNotExist:
+        sender_name = ContactUser.objects.get(user=request.webmail_user, email=message.from_email)
+    except ContactUser.DoesNotExist:
         sender_name = None
     else:
         sender_name = contact.displayed_name
@@ -2025,13 +2025,13 @@ def forward_email(request, mailbox, message_id):
 @ajax(login_required=True, require_POST=True)
 @mailbox_view_decorator(required=True)
 def attachment_upload(request, mailbox, upload_session_id):
-    upload_session = get_object_or_404(UploadAttachmentSessionModel, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
+    upload_session = get_object_or_404(UploadAttachmentSession, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
 
     fobj = request.FILES['attachment']
     if fobj.size > settings.WEBMAIL_ATTACHMENT_MAX_SIZE:
         raise Http404
 
-    file_attachment_uploaded_signal.send(sender=UploadAttachmentSessionModel, request=request, upload_session=upload_session, file_attachment=fobj)
+    file_attachment_uploaded_signal.send(sender=UploadAttachmentSession, request=request, upload_session=upload_session, file_attachment=fobj)
         # Copy the Django attachment (which may be a file or in memory) over to a temp file.
 
 #        # After attached file is placed in a temporary file and ATTACHMENTS_CLAMD is active scan it for viruses:
@@ -2050,7 +2050,7 @@ def attachment_upload(request, mailbox, upload_session_id):
     attachment_mimetype = mimetypes.guess_type(fobj.name)[0]
 
     try:
-        message_attachment = MessageAttachmentModel.objects.create(file=fobj, file_name=fobj.name, mimetype=attachment_mimetype, message=upload_session.message_obj_reference)
+        message_attachment = MessageAttachment.objects.create(file=fobj, file_name=fobj.name, mimetype=attachment_mimetype, message=upload_session.message_obj_reference)
 
 #    except VirusFoundException as ex:
 #        logger.exception(str(ex))
@@ -2069,7 +2069,7 @@ def attachment_delete(request):
 @ajax(login_required=True, require_POST=True)
 @mailbox_view_decorator(required=True)
 def cancel_attachments_session(request, mailbox, upload_session_id):
-    upload_session = get_object_or_404(UploadAttachmentSessionModel, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
+    upload_session = get_object_or_404(UploadAttachmentSession, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
     upload_session.delete()
 
     return {
@@ -2082,14 +2082,14 @@ def cancel_attachments_session(request, mailbox, upload_session_id):
 def finnished_attachments_session(request, mailbox, upload_session_id):
     user = request.webmail_user
 
-    upload_session = get_object_or_404(UploadAttachmentSessionModel, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
+    upload_session = get_object_or_404(UploadAttachmentSession, message_obj_reference__mailbox=mailbox, uuid=upload_session_id)
 
-    attachments_uploaded_signal.send(sender=UploadAttachmentSessionModel, upload_session=upload_session)
+    attachments_uploaded_signal.send(sender=UploadAttachmentSession, upload_session=upload_session)
 
     message = upload_session.message_obj_reference
     message.dispatch()
 
-    message_queued_signal.send(sender=MessageModel, message=message)
+    message_queued_signal.send(sender=Message, message=message)
 
     upload_session.delete()
 
@@ -2118,11 +2118,11 @@ def get_attachment(request, mailbox, message_id, attachment_id):
     # Mirarme: django-file-upload-download
 
     try:
-        attachment = MessageAttachmentModel.objects.get(message=message_id, message__mailbox=mailbox, pk=attachment_id)
-    except MessageAttachmentModel.DoesNotExist:
+        attachment = MessageAttachment.objects.get(message=message_id, message__mailbox=mailbox, pk=attachment_id)
+    except MessageAttachment.DoesNotExist:
         raise Http404
 
-    attachment_downloaded_signal.send(sender=MessageAttachmentModel, attachment=attachment)
+    attachment_downloaded_signal.send(sender=MessageAttachment, attachment=attachment)
 
     fd = attachment.file.open().file
 
@@ -2136,7 +2136,7 @@ def get_attachment(request, mailbox, message_id, attachment_id):
 @ajax(login_required=True)
 @mailbox_view_decorator(required=True)
 def attachment_list(request, mailbox, message_id):
-    attachment_objs = MessageAttachmentModel.objects.filter(message=message_id, message__mailbox=mailbox)
+    attachment_objs = MessageAttachment.objects.filter(message=message_id, message__mailbox=mailbox)
 
     attachment_list = []
     for attachment_obj in attachment_objs:
@@ -2165,8 +2165,8 @@ def read_mail(request, mailbox, message_id):
         }
     else:
         try:
-            contact = ContactModel.objects.get(user=request.webmail_user, email=message.from_email)
-        except ContactModel.DoesNotExist:
+            contact = ContactUser.objects.get(user=request.webmail_user, email=message.from_email)
+        except ContactUser.DoesNotExist:
             sender_name = None
         else:
             sender_name = contact.displayed_name
@@ -2187,8 +2187,8 @@ def read_mail(request, mailbox, message_id):
             receivers.insert(0, receiver)
         else:
             try:
-                contact = ContactModel.objects.get(user=request.webmail_user, email=receiver_email)
-            except ContactModel.DoesNotExist:
+                contact = ContactUser.objects.get(user=request.webmail_user, email=receiver_email)
+            except ContactUser.DoesNotExist:
                 receiver_name = None
             else:
                 receiver_name = contact.displayed_name
@@ -2211,8 +2211,8 @@ def read_mail(request, mailbox, message_id):
                 secondary_receivers.insert(0, receiver)
             else:
                 try:
-                    receiver_name = ContactModel.objects.get(user=request.webmail_user, email=receiver_email)
-                except ContactModel.DoesNotExist:
+                    receiver_name = ContactUser.objects.get(user=request.webmail_user, email=receiver_email)
+                except ContactUser.DoesNotExist:
                     receiver_name = None
                 else:
                     receiver_name = contact.displayed_name
@@ -2343,7 +2343,7 @@ class ContactUpdateView(ContactEditViewMixin, WebmailUpdateView):
     def get_object(self):
         contact_id = self.kwargs["contact_id"]
 
-        return get_object_or_404(ContactModel, id=contact_id, user=self.request.webmail_user)
+        return get_object_or_404(ContactUser, id=contact_id, user=self.request.webmail_user)
 
     def get_action_url(self):
         return self.reverse_url("contact_edit", contact_id=self.object.id)
@@ -2360,8 +2360,8 @@ class ContactDeleteView(WebmailDeleteView):
         contact_id = self.kwargs["contact_id"]
 
         try:
-            return ContactModel.objects.get(id=contact_id, user=self.request.webmail_user)
-        except ContactModel.DoesNotExist:
+            return ContactUser.objects.get(id=contact_id, user=self.request.webmail_user)
+        except ContactUser.DoesNotExist:
             raise Http404
 
     def delete(self, request, *args, **kwargs):
@@ -2375,7 +2375,7 @@ class ContactDeleteView(WebmailDeleteView):
 
 
 class ContactListView(WebmailListView):
-    model = ContactModel
+    model = ContactUser
 
     title = _("List of contacts")
     object_name = "contact"
@@ -2463,9 +2463,9 @@ class SRP_Authentication:
                 username = self.post_data["I"]
 
                 try:
-                    user = WebmailUserModel.objects.get(username=username)
+                    user = WebmailUser.objects.get(username=username)
                 # We don't want to leak that the username doesn't exist. Make up a fake salt and verifier.
-                except WebmailUserModel.DoesNotExist:
+                except WebmailUser.DoesNotExist:
                    raise self.exception_class()
 
             else:
@@ -2524,9 +2524,9 @@ class SRP_Authentication:
                 username = self.session[self.session_prefix + "srp_I"]
 
                 try:
-                    user = WebmailUserModel.objects.get(username=username)
+                    user = WebmailUser.objects.get(username=username)
                 # We don't want to leak that the username doesn't exist. Make up a fake salt and verifier.
-                except WebmailUserModel.DoesNotExist:
+                except WebmailUser.DoesNotExist:
                    raise self.exception_class()
                 else:
                     self.user = user
@@ -2607,7 +2607,7 @@ def change_username_step1(request):
         raise FormAJAXError(srp_info_form)
 
 
-    username_form = UsernameForm(request.POST, instance=WebmailUserModel(username=user.username))
+    username_form = UsernameForm(request.POST, instance=WebmailUser(username=user.username))
 
     if not username_form.is_valid():
         raise FormAJAXError(username_form)
@@ -2847,7 +2847,7 @@ def import_mail(request, mailbox):
 @mailbox_view_decorator(required=False)
 def control_sessions_page(request):
     session = request.session
-    other_sessions = WebmailSessionModel.objects.filter_other_active_sessions(request)
+    other_sessions = WebmailSession.objects.filter_other_active_sessions(request)
 
     return render_webmail_page(request, "webmail/control_sessions.html", "control_sessions", {
         "current_session": {
@@ -2865,7 +2865,7 @@ def control_sessions_page(request):
 @require_POST
 @mailbox_view_decorator(required=False)
 def delete_other_sessions(request):
-    num_deleted_sessions, _not_important = WebmailSessionModel.objects.filter_other_active_sessions(request).delete()
+    num_deleted_sessions, _not_important = WebmailSession.objects.filter_other_active_sessions(request).delete()
 
     if num_deleted_sessions != 0:
         # TODO: Mejorar la pluralizacion
@@ -2877,4 +2877,3 @@ def delete_other_sessions(request):
         admin_messages.success(request, success_message)
 
     return redirect("control_sessions", mailbox=request.current_mailbox)
-

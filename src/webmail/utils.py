@@ -7,7 +7,7 @@ from email.utils import parseaddr, formataddr
 
 
 from django.utils.text import wrap
-from django.utils.translation import ugettext, ugettext_lazy as _
+from django.utils.translation import gettext, gettext_lazy as _
 
 
 from .logutils import get_logger
@@ -78,7 +78,7 @@ def format_body_reply(sender_name, sender_address, body):
     for i, line in enumerate(lines):
         lines[i] = "> %s" % line
     quote = '\n'.join(lines)
-    return ugettext(u"%(sender_text)s wrote:\n%(body)s") % {
+    return gettext(u"%(sender_text)s wrote:\n%(body)s") % {
         'sender_text': sender_text,
         'body': quote
     }
@@ -106,7 +106,7 @@ def format_subject(subject):
             # if anything fails here, fall back to the old mechanism
             pass
 
-    return ugettext(u"Re%(prefix)s: %(subject)s") % {
+    return gettext(u"Re%(prefix)s: %(subject)s") % {
         'subject': subject,
         'prefix': prefix
     }

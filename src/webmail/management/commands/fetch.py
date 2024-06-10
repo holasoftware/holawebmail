@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from webmail.models import Pop3MailServerModel
+from webmail.models import Pop3MailServer
 from webmail.logutils import get_logger
 from webmail.exceptions import InvalidEmailMessageException
 
@@ -24,7 +24,7 @@ class Command(BaseCommand):
     def handle(self, **options):
         mailbox_names_or_ids = options["mailbox_names_or_ids"]
         if len(mailbox_names_or_ids) == 0:
-            pop3_mail_servers = Pop3MailServerModel.objects.filter(active=True)
+            pop3_mail_servers = Pop3MailServer.objects.filter(active=True)
         else:
             pop3_mail_servers = []
 
@@ -32,8 +32,8 @@ class Command(BaseCommand):
                 try:
                     mailbox_id = int(mailbox_name_or_id)
                     try:
-                        pop3_mail_server = Pop3MailServerModel.objects.get(mailbox__id=mailbox_id)
-                    except Pop3MailServerModel.DoesNotExist:
+                        pop3_mail_server = Pop3MailServer.objects.get(mailbox__id=mailbox_id)
+                    except Pop3MailServer.DoesNotExist:
                         self.stderr.write("No mailbox with a pop3 mail server and Id: %s" % mailbox_id)
                     else:
                         pop3_mail_servers.append(pop3_mail_server)
@@ -45,9 +45,9 @@ class Command(BaseCommand):
                     username, mailbox_name = mailbox_name_or_id.split(":")
 
                     try:
-                        pop3_mail_server = Pop3MailServerModel.objects.get(
+                        pop3_mail_server = Pop3MailServer.objects.get(
                             mailbox__user__username=username, mailbox__name=mailbox_name)
-                    except Pop3MailServerModel.DoesNotExist:
+                    except Pop3MailServer.DoesNotExist:
                         self.stderr.write("No mailbox belonging to user '%s' with a pop3 mail server associated and mailbox name '%s'" % (username, mailbox_name))
                     else:
                         pop3_mail_servers.append(pop3_mail_server)

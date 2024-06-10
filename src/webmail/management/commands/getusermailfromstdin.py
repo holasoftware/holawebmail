@@ -5,7 +5,7 @@ import sys
 from django.core.management.base import BaseCommand, CommandError
 
 
-from webmail.models import MailboxModel
+from webmail.models import Mailbox
 from webmail.logutils import get_logger
 
 
@@ -27,7 +27,7 @@ class Command(BaseCommand):
 
     def handle(self, username, mailbox_name=None, *args, **options):
         try:
-            mailbox = MailboxModel.objects.get(user__username=username, name=mailbox_name)
+            mailbox = Mailbox.objects.get(user__username=username, name=mailbox_name)
         except Mailbox.DoesNotExist:
             raise CommandError("Mailbox does not exist")
 

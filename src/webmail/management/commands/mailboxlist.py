@@ -4,7 +4,7 @@ import sys
 from django.core.management.base import BaseCommand
 
 
-from webmail.models import MailboxModel
+from webmail.models import Mailbox
 
 
 class Command(BaseCommand):
@@ -17,5 +17,5 @@ class Command(BaseCommand):
         )
 
     def handle(self, user_id, **kw):
-        for mailbox in MailboxModel.objects.filter(user__id=user_id):
+        for mailbox in Mailbox.objects.filter(user__id=user_id):
             self.stdout.write(mailbox.name)

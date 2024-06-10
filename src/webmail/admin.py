@@ -3,14 +3,13 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.safestring import mark_safe
 from django.urls import reverse as reverse_url
 from django.db.models import OuterRef, Subquery
-from django.utils.translation import ugettext as _
+from django.utils.translation import gettext_lazy as _
 
 
-from .models import WebmailUserModel, WebmailSessionModel, AccessLogModel, ContactModel, MailboxModel, Pop3MailServerModel, SmtpServerModel, TagModel, MessageModel, MessageAttachmentModel, UploadAttachmentSessionModel, SendMailTaskModel, SendMailTaskBatchModel, SendMailTaskLogModel, SendMailTaskExceptionLogModel, SendMailTaskErrorRecipientModel
+from .models import WebmailUser, WebmailSession, AccessLog, ContactUser, Mailbox, Pop3MailServer, SmtpServer, MessageTag, Message, MessageAttachment, UploadAttachmentSession, SendMailTask, SendMailTaskBatch, SendMailTaskExceptionLog, SendMailTaskErrorRecipient
 
 
-
-class MailboxModelAdmin(admin.ModelAdmin):
+class MailboxAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ('id', 'name', 'user', 'is_default', 'emails', 'created_at')
     list_filter = ('is_default', )
@@ -25,7 +24,7 @@ class MailboxModelAdmin(admin.ModelAdmin):
         return False
 
 
-class Pop3MailServerModelAdmin(admin.ModelAdmin):
+class Pop3MailServerAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ('id', 'mailbox', 'active', 'username', 'password', 'ip_address', 'port', 'use_ssl', 'last_polling')
     readonly_fields = ('mailbox', 'active', 'username', 'password', 'ip_address', 'port', 'use_ssl', 'last_polling',)
@@ -37,7 +36,7 @@ class Pop3MailServerModelAdmin(admin.ModelAdmin):
         return False
 
 
-class SmtpServerModelAdmin(admin.ModelAdmin):
+class SmtpServerAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ('id', 'mailbox', 'ip_address', 'port', 'username', 'password', 'use_tls', 'use_ssl', 'from_email', 'from_name',)
     readonly_fields = ('mailbox', 'ip_address', 'port', 'username', 'password', 'use_tls', 'use_ssl', 'from_email', 'from_name')
@@ -53,7 +52,7 @@ class SmtpServerModelAdmin(admin.ModelAdmin):
         return False
 
 
-class ContactModelAdmin(admin.ModelAdmin):
+class ContactUserAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ('id', 'get_user_filter_url', 'displayed_name', 'email',)
     readonly_fields = ('user', 'displayed_name', 'email')
@@ -84,7 +83,7 @@ class ContactModelAdmin(admin.ModelAdmin):
 
 
 class MessageAttachmentInline(admin.StackedInline):
-    model = MessageAttachmentModel
+    model = MessageAttachment
     fields = ('file_name', 'mimetype', 'file')
     readonly_fields = ('file_name', 'mimetype', 'file')
     extra = 0
@@ -95,7 +94,7 @@ class MessageAttachmentInline(admin.StackedInline):
         return False
 
 
-class MessageModelAdmin(admin.ModelAdmin):
+class MessageAdmin(admin.ModelAdmin):
     # TODO: Facilitar un filtro por mailbox
     list_per_page = 10
 #    fields = (
@@ -142,7 +141,7 @@ class MessageModelAdmin(admin.ModelAdmin):
     is_starred_header.boolean = True
 
 
-class MessageAttachmentModelAdmin(admin.ModelAdmin):
+class MessageAttachmentAdmin(admin.ModelAdmin):
     list_display = ('id', 'message_url', 'file_name', 'mimetype')
     list_filter = ('mimetype',)
 
@@ -162,7 +161,7 @@ class MessageAttachmentModelAdmin(admin.ModelAdmin):
         return False
 
 
-class TagModelAdmin(admin.ModelAdmin):
+class MessageTagAdmin(admin.ModelAdmin):
     list_display = ('name',)
 
     def has_add_permission(self, request, obj=None):
@@ -171,7 +170,7 @@ class TagModelAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-class UploadAttachmentSessionModelAdmin(admin.ModelAdmin):
+class UploadAttachmentSessionAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'created_at')
 
     def has_add_permission(self, request, obj=None):
@@ -181,18 +180,18 @@ class UploadAttachmentSessionModelAdmin(admin.ModelAdmin):
         return False
 
 
-class WebmailUserModelAdmin(admin.ModelAdmin):
+class WebmailUserAdmin(admin.ModelAdmin):
     list_per_page = 10
-    list_display = ["username", "displayed_name", "last_time_password_changed", "is_2fa_enabled", "last_login", "is_active", "date_created"]
+    list_display = ["username", "displayed_name", "last_time_password_changed", "is_2fa_enabled", "last_login", "is_active", "date_joined"]
     readonly_fields = ["username", "displayed_name", "is_active", "is_2fa_enabled", "last_login", "last_time_password_changed"]
-    date_hierarchy = "date_created"
+    date_hierarchy = "date_joined"
 
     exclude = ["srp_group", "verifier", "salt"]
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
 
-        access_log_subquery = AccessLogModel.objects.filter(user=OuterRef('pk')).order_by('date')
+        access_log_subquery = AccessLog.objects.filter(user=OuterRef('pk')).order_by('date')
         queryset = queryset.annotate(last_login=Subquery(access_log_subquery.values('date')[:1]))
 
         return queryset
@@ -204,12 +203,13 @@ class WebmailUserModelAdmin(admin.ModelAdmin):
         return False
 
     def last_login(self, obj):
-        return obj.last_login
+        # TODO: Localize date
+        return obj.get_last_login_date()
 
-    last_login.short_description = 'Last login'
+    last_login.short_description = _('Last login')
 
 
-class SendMailTaskModelAdmin(admin.ModelAdmin):
+class SendMailTaskAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ["id", "priority", "status", "created_at","num_deferred_times", "scheduled_time", "last_sent_at",  "show_logs"]
     readonly_fields = ["priority", "status", "created_at","num_deferred_times", "scheduled_time", "last_sent_at"]
@@ -240,7 +240,7 @@ class SendMailTaskModelAdmin(admin.ModelAdmin):
         return mark_safe("<a href='%s?task=%s'>Show logs</a>" % (url, instance.id))
 
 
-class SendMailTaskBatchModelAdmin(admin.ModelAdmin):
+class SendMailTaskBatchAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ["id", "get_task_url", "num_batch", "processed_at"]
     date_hierarchy = "processed_at"
@@ -259,10 +259,10 @@ class SendMailTaskBatchModelAdmin(admin.ModelAdmin):
 
         return mark_safe("<a href='%s'>%s</a>" % (change_task_url, task_id))
 
-    get_task_url.short_description = 'Task'
+    get_task_url.short_description = _('Task')
 
 
-class SendMailTaskExceptionLogModelAdmin(admin.ModelAdmin):
+class SendMailTaskExceptionLogAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ["id", "task_batch", "exception_type", "exception_message"]
     list_filter = ["exception_type"]
@@ -277,7 +277,7 @@ class SendMailTaskExceptionLogModelAdmin(admin.ModelAdmin):
         return False
 
 
-class SendMailTaskErrorRecipientModelAdmin(admin.ModelAdmin):
+class SendMailTaskErrorRecipientAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ["id", "task_batch", "code", "response"]
     list_filter = ["code"]
@@ -290,7 +290,7 @@ class SendMailTaskErrorRecipientModelAdmin(admin.ModelAdmin):
         return False
 
 
-class WebmailSessionModelAdmin(admin.ModelAdmin):
+class WebmailSessionAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ["get_uuid_hex", "get_username", "session_key", "expire_date", "last_activity"]
 
@@ -311,7 +311,7 @@ class WebmailSessionModelAdmin(admin.ModelAdmin):
         return False
 
 
-class AccessLogModelAdmin(admin.ModelAdmin):
+class AccessLogAdmin(admin.ModelAdmin):
     list_per_page = 10
     list_display = ["id", "get_username", "user_agent", "ip", "date"]
 
@@ -327,24 +327,23 @@ class AccessLogModelAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-admin.site.register(WebmailUserModel, WebmailUserModelAdmin)
-admin.site.register(ContactModel, ContactModelAdmin)
-admin.site.register(MailboxModel, MailboxModelAdmin)
-admin.site.register(Pop3MailServerModel, Pop3MailServerModelAdmin)
-admin.site.register(SmtpServerModel, SmtpServerModelAdmin)
-admin.site.register(TagModel, TagModelAdmin)
-admin.site.register(MessageModel, MessageModelAdmin)
-admin.site.register(MessageAttachmentModel, MessageAttachmentModelAdmin)
-admin.site.register(UploadAttachmentSessionModel, UploadAttachmentSessionModelAdmin)
-admin.site.register(SendMailTaskModel, SendMailTaskModelAdmin)
-admin.site.register(SendMailTaskBatchModel, SendMailTaskBatchModelAdmin)
-admin.site.register(SendMailTaskExceptionLogModel, SendMailTaskExceptionLogModelAdmin)
-admin.site.register(SendMailTaskErrorRecipientModel, SendMailTaskErrorRecipientModelAdmin)
-admin.site.register(AccessLogModel, AccessLogModelAdmin)
-admin.site.register(WebmailSessionModel, WebmailSessionModelAdmin)
+admin.site.register(WebmailUser, WebmailUserAdmin)
+admin.site.register(ContactUser, ContactUserAdmin)
+admin.site.register(Mailbox, MailboxAdmin)
+admin.site.register(Pop3MailServer, Pop3MailServerAdmin)
+admin.site.register(SmtpServer, SmtpServerAdmin)
+admin.site.register(MessageTag, MessageTagAdmin)
+admin.site.register(Message, MessageAdmin)
+admin.site.register(MessageAttachment, MessageAttachmentAdmin)
+admin.site.register(UploadAttachmentSession, UploadAttachmentSessionAdmin)
+admin.site.register(SendMailTask, SendMailTaskAdmin)
+admin.site.register(SendMailTaskBatch, SendMailTaskBatchAdmin)
+admin.site.register(SendMailTaskExceptionLog, SendMailTaskExceptionLogAdmin)
+admin.site.register(SendMailTaskErrorRecipient, SendMailTaskErrorRecipientAdmin)
+admin.site.register(AccessLog, AccessLogAdmin)
+admin.site.register(WebmailSession, WebmailSessionAdmin)
 
 
 admin.site.site_header = _("Webmail Admin")
 admin.site.site_title = _("Webmail Admin Portal")
 admin.site.index_title = _("Welcome to Webmail Admin Portal")
-

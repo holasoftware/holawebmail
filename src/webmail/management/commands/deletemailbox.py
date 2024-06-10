@@ -3,7 +3,7 @@ import sys
 
 from django.core.management.base import BaseCommand
 
-from webmail.models import MailboxModel
+from webmail.models import Mailbox
 
 
 class Command(BaseCommand):
@@ -17,7 +17,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, mailbox_id, **kw):
-        num_deleted, _ = MailboxModel.objects.filter(id=mailbox_id).delete()
+        num_deleted, _ = Mailbox.objects.filter(id=mailbox_id).delete()
 
         if num_deleted == 0:
             self.stderr.write("No mailbox with ID: %s" % mailbox_id)

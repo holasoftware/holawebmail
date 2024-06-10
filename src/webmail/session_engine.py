@@ -2,7 +2,7 @@ from django.conf import settings
 from django.contrib.sessions.backends.db import SessionStore as DjangoDbSessionStore
 
 
-from webmail.models import WebmailSessionModel
+from webmail.models import WebmailSession
 
 
 class SessionStore(DjangoDbSessionStore):
@@ -41,7 +41,7 @@ class SessionStore(DjangoDbSessionStore):
 
     @classmethod
     def get_model_class(cls):
-        return WebmailSessionModel
+        return WebmailSession
 
     def create_model_instance(self, data):
         """
@@ -55,4 +55,3 @@ class SessionStore(DjangoDbSessionStore):
             session_data=self.encode(data),
             expire_date=self.get_expiry_date(),
         )
-

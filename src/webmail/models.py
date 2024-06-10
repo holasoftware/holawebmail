@@ -8,7 +8,6 @@ from email import message_from_string
 from io import BytesIO
 import mimetypes
 import os
-import uuid
 import base64
 from tempfile import NamedTemporaryFile
 import smtplib
@@ -36,7 +35,7 @@ from . import utils, settings
 from .signals import inbound_email_received_signal, user_logged_in_signal
 from .validators import validate_email_with_name, username_validator, hexdigits_validator
 from .pop3_transport import Pop3Transport
-from .fields import CommaSeparatedEmailField, JSONField
+from .fields import CommaSeparatedEmailField
 from .srp import salted_verification_key
 from .srp.srp_defaults import DEFAULT_BIT_GROUP_NUMBER
 from .logutils import get_logger
@@ -71,7 +70,7 @@ def parse_addresses_from_header(header):
     return addresses
 
 
-class WebmailUserModelManager(models.Manager):
+class WebmailUserManager(models.Manager):
     def make_random_password(self, length=10,
                              allowed_chars='abcdefghjkmnpqrstuvwxyz'
                                            'ABCDEFGHJKLMNPQRSTUVWXYZ'
@@ -87,13 +86,8 @@ class WebmailUserModelManager(models.Manager):
         """
         Create and save a user with the given username, displayed name and password.
         """
-
-        if username:
-            username = self.model.normalize_username(username)
-
         if not password:
             password = self.make_random_password()
-
 
         s, v = salted_verification_key(username, password)
         salt = s.hex()
@@ -105,8 +99,7 @@ class WebmailUserModelManager(models.Manager):
         return user
 
 
-# class UserLoginModel(models.Model):
-class WebmailUserModel(models.Model):
+class WebmailUser(models.Model):
     username = models.CharField(
         _('Username'),
         max_length=30,
@@ -147,16 +140,13 @@ class WebmailUserModel(models.Model):
     verifier = models.TextField(validators=[hexdigits_validator], max_length=1000, blank=True)
     salt = models.CharField(validators=[hexdigits_validator], max_length=255, blank=True)
 
-    # joined_date = models.DateField(auto_now_add=True)
-    # date_joined
-    date_created = models.DateTimeField(_('Date Created'), auto_now_add=True)
+    date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
 
-    objects = WebmailUserModelManager()
+    objects = WebmailUserManager()
 
     class Meta:
         verbose_name = _('Webmail User')
         verbose_name_plural = _('Webmail Users')
-        db_table = "webmail_webmailuser"
 
 #    def set_from_password(self, password, srp_group=1024):
 #        self.srp_group = srp_group
@@ -170,9 +160,9 @@ class WebmailUserModel(models.Model):
 
     def get_session_auth_hash(self):
         """
-        Return an HMAC of the password field.
+        Return an HMAC of the SRP parameters.
         """
-        key_salt = "webmail.models.WebmailUserModel.get_session_auth_hash"
+        key_salt = "webmail.models.WebmailUser.get_session_auth_hash"
         return salted_hmac(key_salt, "%s:%s:%s" % (self.srp_group, self.verifier, self.salt)).hexdigest()
 
 
@@ -191,14 +181,6 @@ class WebmailUserModel(models.Model):
         authenticated in templates.
         """
         return True
-
-    @classmethod
-    def normalize_username(cls, username):
-        return username
-
-    # Cuando se utiliza el clean en un modelo???
-    def clean(self):
-        self.username = self.normalize_username(self.username)
 
     def __str__(self):
         return self.username
@@ -245,7 +227,7 @@ class WebmailSessionManager(models.Manager):
         return self.filter(**kwargs)
 
     def filter_other_active_sessions(self, request):
-        return WebmailSessionModel.objects.filter_active(
+        return WebmailSession.objects.filter_active(
             user=request.webmail_user).exclude(session_key=request.session.session_key)
 
     def filter_expired(self, user=None):
@@ -264,7 +246,7 @@ class WebmailSessionManager(models.Manager):
 
 class WebmailSessionAbstractModel(models.Model):
     uuid = models.UUIDField(_('UUID'), unique=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(WebmailUserModel, null=True, blank=True, editable=False, db_index=True, on_delete=models.CASCADE)
+    user = models.ForeignKey(WebmailUser, null=True, blank=True, editable=False, db_index=True, on_delete=models.CASCADE)
     session_key = models.CharField(_('Session key'), max_length=40, primary_key=True)
     session_data = models.TextField(_('Session data'), editable=False)
     expire_date = models.DateTimeField(_('Expire date'), editable=False, db_index=True)
@@ -283,7 +265,7 @@ class WebmailSessionAbstractModel(models.Model):
         return session_store_class().decode(self.session_data)
 
 
-class WebmailSessionModel(WebmailSessionAbstractModel):
+class WebmailSession(WebmailSessionAbstractModel):
     @classmethod
     def get_session_store_class(cls):
         return SessionStoreBase
@@ -293,11 +275,9 @@ class WebmailSessionModel(WebmailSessionAbstractModel):
         verbose_name_plural = _('Webmail Sessions')
         ordering = ('-last_activity',)
 
-        db_table = "webmail_webmailsession"
 
-
-class AccessLogModel(models.Model):
-    user = models.ForeignKey(WebmailUserModel, on_delete=models.CASCADE, db_index=True, editable=False, related_name="access_logs")
+class AccessLog(models.Model):
+    user = models.ForeignKey(WebmailUser, on_delete=models.CASCADE, db_index=True, editable=False, related_name="access_logs")
     user_agent = models.TextField(_("User Agent"), null=True, editable=False)
     ip = models.GenericIPAddressField(_("IP Address"), null=True, editable=False)
     date = models.DateTimeField(_('Date Last login'), auto_now_add=True)
@@ -307,7 +287,6 @@ class AccessLogModel(models.Model):
         verbose_name_plural = _('Access Logs')
 
         ordering = ('-date',)
-        db_table = "webmail_accesslog"
 
     def __str__(self):
         return str(self.id)
@@ -331,9 +310,9 @@ def register_access_log(sender, request, user, **kw):
     ip, _not_important = extract_ip(request)
     user_agent = request.META.get('HTTP_USER_AGENT', '')
 
-    AccessLogModel.objects.create(user=user, user_agent=user_agent, ip=ip)
+    AccessLog.objects.create(user=user, user_agent=user_agent, ip=ip)
 
-user_logged_in_signal.connect(register_access_log, sender=WebmailUserModel)
+user_logged_in_signal.connect(register_access_log, sender=WebmailUser)
 
 
 class AnonymousUser:
@@ -369,8 +348,8 @@ class AnonymousUser:
         return False
 
 
-class ContactModel(models.Model):
-    user = models.ForeignKey(WebmailUserModel, on_delete=models.CASCADE, related_name="contacts")
+class ContactUser(models.Model):
+    user = models.ForeignKey(WebmailUser, on_delete=models.CASCADE, related_name="contacts")
     displayed_name = models.CharField(
         _('displayed name'),
         max_length=150,
@@ -379,7 +358,7 @@ class ContactModel(models.Model):
     )
     email = models.EmailField(max_length=150)
 
-    extra_data = JSONField(null=True, blank=True, editable=False)
+    extra_data = models.JSONField(null=True, blank=True, editable=False)
 
     creation_date = models.DateTimeField(_('creation date'), auto_now_add=True)
     modification_date = models.DateTimeField(_('modification date'), auto_now=True)
@@ -394,18 +373,17 @@ class ContactModel(models.Model):
         ordering = ('displayed_name',)
 
         unique_together = ('user', 'email')
-        db_table = "webmail_contact"
 
 
-class ActiveMailboxModelManager(models.Manager):
+class ActiveMailboxManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(
             active=True,
         )
 
 
-class MailboxModel(models.Model):
-    user = models.ForeignKey(WebmailUserModel, on_delete=models.CASCADE, related_name="mailboxes")
+class Mailbox(models.Model):
+    user = models.ForeignKey(WebmailUser, on_delete=models.CASCADE, related_name="mailboxes")
 
     name = models.CharField(
         _('Name'),
@@ -420,7 +398,7 @@ class MailboxModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = models.Manager()
-    active_mailboxes = ActiveMailboxModelManager()
+    active_mailboxes = ActiveMailboxManager()
 
     def set_as_default(self):
         with transaction.atomic():
@@ -435,36 +413,36 @@ class MailboxModel(models.Model):
     def process_incomming_email(self, email_message):
         """Process a message incoming to this mailbox."""
 
-        inbound_email_received_signal.send(sender=MailboxModel, email_message=email_message, mailbox=self)
+        inbound_email_received_signal.send(sender=Mailbox, email_message=email_message, mailbox=self)
 
         if is_spam(email_message):
-            folder_id = MessageModel.SPAM_FOLDER_ID
+            folder_id = Message.SPAM_FOLDER_ID
         else:
-            folder_id = MessageModel.INBOX_FOLDER_ID
+            folder_id = Message.INBOX_FOLDER_ID
 
         return self.import_email(email_message, folder_id=folder_id)
 
     def import_email(self, email_message, folder_id=None):
         if folder_id is None:
-            folder_id = MessageModel.INBOX_FOLDER_ID
+            folder_id = Message.INBOX_FOLDER_ID
 
-        msg_record = MessageModel.process_raw_email_message(mailbox=self, email_message=email_message, folder_id=folder_id, my_email_list=self.emails)
+        msg_record = Message.process_raw_email_message(mailbox=self, email_message=email_message, folder_id=folder_id, my_email_list=self.emails)
 
         return msg_record
 
     @property
     def is_smtp_server_configured(self):
-        return SmtpServerModel.objects.filter(mailbox=self).exists()
+        return SmtpServer.objects.filter(mailbox=self).exists()
 
     @property
     def is_pop3_mail_server_configured(self):
-        return Pop3MailServerModel.objects.filter(mailbox=self).exists()
+        return Pop3MailServer.objects.filter(mailbox=self).exists()
 
     @property
     def is_pop3_mail_server_active(self):
         try:
             return self.pop3_mail_server.active
-        except Pop3MailServerModel.DoesNotExist:
+        except Pop3MailServer.DoesNotExist:
             return False
 
     def __str__(self):
@@ -476,12 +454,11 @@ class MailboxModel(models.Model):
 
         ordering = ('name',)
         unique_together = ('user', 'name')
-        db_table = "webmail_mailbox"
 
 
-class Pop3MailServerModel(models.Model):
+class Pop3MailServer(models.Model):
     mailbox = models.OneToOneField(
-        MailboxModel,
+        Mailbox,
         related_name='pop3_mail_server',
         verbose_name=_('Mailbox'),
         on_delete=models.CASCADE
@@ -561,12 +538,12 @@ class Pop3MailServerModel(models.Model):
         return '%s@%s:%s' % (self.username, self.ip_address, self.port)
 
 
-class SmtpServerModel(models.Model):
+class SmtpServer(models.Model):
     """
     All the needed information to connect to a SMTP server and send emails.
     """
     mailbox = models.OneToOneField(
-        MailboxModel,
+        Mailbox,
         related_name='smtp_server',
         verbose_name=_('Mailbox'),
         on_delete=models.CASCADE
@@ -655,13 +632,12 @@ class SmtpServerModel(models.Model):
         db_table = "webmail_smtpserver"
 
 
-class TagModel(models.Model):
+class MessageTag(models.Model):
     name = models.CharField(verbose_name=_("Name"), unique=True, max_length=100)
 
     class Meta:
         verbose_name = _("Tag")
         verbose_name_plural = _("Tags")
-        db_table = "webmail_tag"
 
 
 class UnknownFolderException(Exception):
@@ -746,7 +722,7 @@ class UnstarredMessagesManager(models.Manager):
         )
 
 
-class MessageModel(models.Model):
+class Message(models.Model):
     INBOX_FOLDER_ID = 0
     SENT_FOLDER_ID = 1
     SPAM_FOLDER_ID = 2
@@ -764,7 +740,7 @@ class MessageModel(models.Model):
     FOLDER_IDS = [INBOX_FOLDER_ID, SENT_FOLDER_ID, SPAM_FOLDER_ID, TRASH_FOLDER_ID]
 
     mailbox = models.ForeignKey(
-        MailboxModel,
+        Mailbox,
         related_name='messages',
         verbose_name=_('Mailbox'),
         on_delete=models.CASCADE
@@ -783,7 +759,7 @@ class MessageModel(models.Model):
     )
 
     in_reply_to = models.ForeignKey(
-        'webmail.MessageModel',
+        'webmail.Message',
         related_name='replies',
         blank=True,
         null=True,
@@ -791,7 +767,7 @@ class MessageModel(models.Model):
         on_delete=models.CASCADE
     )
 
-    original_email_headers = JSONField(_("Original email headers"), editable=False, null=True, blank=True)
+    original_email_headers = models.JSONField(_("Original email headers"), editable=False, null=True, blank=True)
 
     from_me = models.BooleanField(_("From me"), default=False)
     from_email = models.CharField(_("From"), max_length=254, validators=[validate_email_with_name])
@@ -828,7 +804,7 @@ class MessageModel(models.Model):
         _("Imported"),
         default=False)
 
-    tags = models.ManyToManyField(TagModel)
+    tags = models.ManyToManyField(MessageTag)
 
     objects = models.Manager()
 
@@ -906,7 +882,7 @@ class MessageModel(models.Model):
             else:
                 file_name = utils.convert_header_to_unicode(raw_filename)
 
-            record_attachment = MessageAttachmentModel()
+            record_attachment = MessageAttachment()
             record_attachment.file_name = file_name
 
             # TODO: Revisar esta parte
@@ -1004,10 +980,10 @@ class MessageModel(models.Model):
 
         if email_message['In-Reply-To']:
             try:
-                msg_record.in_reply_to = MessageModel.objects.get(
+                msg_record.in_reply_to = Message.objects.get(
                     message_id=email_message['In-Reply-To'].strip()
                 )
-            except MessageModel.DoesNotExist:
+            except Message.DoesNotExist:
                 pass
 
         msg_record.folder_id = folder_id
@@ -1203,8 +1179,8 @@ class MessageModel(models.Model):
         i = 0
         while True:
             try:
-                MessageModel.objects.get(message_id=uid + str(i))
-            except MessageModel.DoesNotExists:
+                Message.objects.get(message_id=uid + str(i))
+            except Message.DoesNotExists:
                 uid = uid + str(i)
 
                 break
@@ -1245,7 +1221,7 @@ class MessageModel(models.Model):
 
         logger.info("Adding message to task queue.")
 
-        SendMailTaskModel.objects.create_from_message(message=self, priority=priority)
+        SendMailTask.objects.create_from_message(message=self, priority=priority)
 
 
     def to_dict(self):
@@ -1311,7 +1287,6 @@ class MessageModel(models.Model):
         ordering = ('-date',)
         verbose_name = _('Message')
         verbose_name_plural = _('Messages')
-        db_table = "webmail_message"
 
 
 def get_attachment_save_path(instance, filename):
@@ -1342,9 +1317,9 @@ def get_attachment_save_path(instance, filename):
 #                save=False
 #            )
 
-class MessageAttachmentModel(models.Model):
+class MessageAttachment(models.Model):
     message = models.ForeignKey(
-        MessageModel,
+        Message,
         related_name='attachments',
         null=False,
         blank=False,
@@ -1374,14 +1349,13 @@ class MessageAttachmentModel(models.Model):
     class Meta:
         verbose_name = _('Message Attachment')
         verbose_name_plural = _('Message Attachments')
-        db_table = "webmail_messageattachment"
 
 
-class UploadAttachmentSessionModel(models.Model):
+class UploadAttachmentSession(models.Model):
     uuid = models.UUIDField(unique=True, default=uuid.uuid1, editable=False, db_column='uuid')
     created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
     message_obj_reference = models.OneToOneField(
-        MessageModel,
+        Message,
         related_name='upload_session',
         null=True,
         blank=True,
@@ -1399,14 +1373,13 @@ class UploadAttachmentSessionModel(models.Model):
     class Meta:
         verbose_name = _('Upload Attachment Session')
         verbose_name_plural = _('Upload Attachment Sessions')
-        db_table = "webmail_uploadattachmentsession"
 
 
 #def compose_upload_to(instance, filename):
 #    file_path = os.path.join(settings.ATTACHMENT_TEMP_DIR, str(instance.compose_session.id), uuid.uuid1())
 #    return file_path
 
-#class ComposeUploadedFileModel(models.Model):
+#class ComposeUploadedFile(models.Model):
 #    compose_session = models.ForeignKey(ComposeModel, on_delete=models.CASCADE, related_name="uploads", db_column='compose_session')
 #    file_name = models.TextField()
 #    file = models.FileField(
@@ -1420,12 +1393,12 @@ class UploadAttachmentSessionModel(models.Model):
 #        return super().delete(*args, **kwargs)
 
 
-class SendMailTaskModelManager(models.Manager):
+class SendMailTaskManager(models.Manager):
     def create_from_message(self, message, priority=None):
         multipart_mail_message = message.email_message.message().as_bytes(linesep='\r\n')
 
         if priority is None:
-            priority = SendMailTaskModel.PRIORITY_MEDIUM
+            priority = SendMailTask.PRIORITY_MEDIUM
 
         return super().create(
             mailbox=message.mailbox,
@@ -1437,26 +1410,26 @@ class SendMailTaskModelManager(models.Manager):
         """
         the high priority messages in the queue
         """
-        return self.filter(priority=SendMailTaskModel.PRIORITY_HIGH)
+        return self.filter(priority=SendMailTask.PRIORITY_HIGH)
 
     def medium_priority(self):
         """
         the medium priority messages in the queue
         """
-        return self.filter(priority=SendMailTaskModel.PRIORITY_MEDIUM)
+        return self.filter(priority=SendMailTask.PRIORITY_MEDIUM)
 
     def low_priority(self):
         """
         the low priority messages in the queue
         """
-        return self.filter(priority=SendMailTaskModel.PRIORITY_LOW)
+        return self.filter(priority=SendMailTask.PRIORITY_LOW)
 
     def non_deferred(self):
         """
         the messages in the queue not deferred
         """
         return self.filter(
-                    status=SendMailTaskModel.STATUS_QUEUED) \
+                    status=SendMailTask.STATUS_QUEUED) \
                 .filter(
                     Q(scheduled_time__lte=timezone.now()) | Q(scheduled_time=None))
 
@@ -1465,15 +1438,15 @@ class SendMailTaskModelManager(models.Manager):
         the deferred messages in the queue
         """
         return self.filter(
-                    status=SendMailTaskModel.STATUS_QUEUED) \
+                    status=SendMailTask.STATUS_QUEUED) \
                 .filter(
                     scheduled_time__isnull=False, scheduled_time__gt=timezone.now())
 
     def purge_old_entries(self, days):
         last_sent_date_limit = timezone.now() - datetime.timedelta(days=days)
         query = self.filter(
-            Q(last_sent_at__lt=last_sent_date_limit) | Q(status=SendMailTaskModel.STATUS_CANCELLED)
-        ).exclude(status__in=[SendMailTaskModel.STATUS_QUEUED, SendMailTaskModel.STATUS_IN_PROGRESS])
+            Q(last_sent_at__lt=last_sent_date_limit) | Q(status=SendMailTask.STATUS_CANCELLED)
+        ).exclude(status__in=[SendMailTask.STATUS_QUEUED, SendMailTask.STATUS_IN_PROGRESS])
 
         count = query.count()
         query.delete()
@@ -1481,7 +1454,7 @@ class SendMailTaskModelManager(models.Manager):
 
 
 # OutboundMessageQueueModel, SendMailQueueModel, MailQueueModel, SendMailModel
-class SendMailTaskModel(models.Model):
+class SendMailTask(models.Model):
     PRIORITY_HIGH = 1
     PRIORITY_MEDIUM = 2
     PRIORITY_LOW = 3
@@ -1506,7 +1479,7 @@ class SendMailTaskModel(models.Model):
         (STATUS_FAILED, _("Failed")),
         (STATUS_CANCELLED, _("Cancelled")),
     ]
-    mailbox = models.ForeignKey(MailboxModel, on_delete=models.CASCADE, related_name="send_tasks")
+    mailbox = models.ForeignKey(Mailbox, on_delete=models.CASCADE, related_name="send_tasks")
     email_recipients = CommaSeparatedEmailField()
 
     # message_data, encoded_mimeparts, serialized_email
@@ -1531,12 +1504,11 @@ class SendMailTaskModel(models.Model):
     last_sent_at = models.DateTimeField(blank=True, null=True)
     last_sent_succeed = models.BooleanField(blank=True, null=True, db_index=True)
 
-    objects = SendMailTaskModelManager()
+    objects = SendMailTaskManager()
 
     class Meta:
         verbose_name = _("Send Mail Task")
         verbose_name_plural = _("Send Email Task Queue")
-        db_table = "webmail_sendmailtask"
 
     def is_done(self):
         return self.status in (self.STATUS_COMPLETED, self.STATUS_FAILED, self.STATUS_CANCELLED) 
@@ -1614,11 +1586,11 @@ set the attribute again to cause the underlying serialised data to be updated.""
     def send(self, notify_failure=False, max_retries=settings.WEBMAIL_MAX_RETRIES_SEND_MAIL, wait_time_next_retry=settings.WEBMAIL_WAIT_TIME_NEXT_RETRY_SEND_MAIL):
         try:
             smtp_server = self.mailbox.smtp_server
-        except SmtpServerModel.DoesNotExist:
+        except SmtpServer.DoesNotExist:
             logger.error("No smtp server configured for mailbox %d" % self.mailbox.id)
 
             # TODO: Give detailed instructions how to configure SMTP server
-            MessageModel.objects.create(mailbox=self.mailbox, folder_id=MessageModel.INBOX_FOLDER_ID, from_email=settings.WEBMAIL_EMAIL_FOR_ERROR_NOTIFICATION, to=self.email_recipients, subject=_("No SMTP mail server configured!"), text_plain=_("The message has not been sent because no SMTP server configured. Try again after configuring a SMTP server for this mailbox."))
+            Message.objects.create(mailbox=self.mailbox, folder_id=Message.INBOX_FOLDER_ID, from_email=settings.WEBMAIL_EMAIL_FOR_ERROR_NOTIFICATION, to=self.email_recipients, subject=_("No SMTP mail server configured!"), text_plain=_("The message has not been sent because no SMTP server configured. Try again after configuring a SMTP server for this mailbox."))
 
             raise NoSmtpServerConfiguredException()
 
@@ -1627,7 +1599,7 @@ set the attribute again to cause the underlying serialised data to be updated.""
         multipart_mail_message = self.multipart_mail_message
 
         logger.info("Sending email to %s" % ", ".join(self.email_recipients))
-        batch = SendMailTaskBatchModel.objects.create(task=self, num_batch=self.num_deferred_times)
+        batch = SendMailTaskBatch.objects.create(task=self, num_batch=self.num_deferred_times)
 
         recipients_with_errors = None
 
@@ -1649,7 +1621,7 @@ set the attribute again to cause the underlying serialised data to be updated.""
 
             logger.warning("Exception sending message task '%s'. Exception type: %s. Exception message: %s. Traceback:\n%s" % (self.pk, exception_type, exception_message, py_traceback))
 
-            SendMailTaskExceptionLogModel.objects.create(
+            SendMailTaskExceptionLog.objects.create(
                 task_batch=batch,
                 exception_type=exception_type,
                 exception_message=exception_message,
@@ -1660,12 +1632,12 @@ set the attribute again to cause the underlying serialised data to be updated.""
 
         self.last_sent_at = timezone.now()
         self.last_sent_succeed = last_sent_succeed
-        self.save(update_fields=["last_sent_at"])
+        self.save(update_fields=["last_sent_at", "last_sent_succeed"])
 
         if recipients_with_errors is not None and len(recipients_with_errors) != 0:
             for error_recipient_email, error_status in recipients_with_errors.items():
                 code, response = error_status
-                SendMailTaskLogErrorRecipientModel.objects.create(task_batch=batch, recipient=error_recipient_email, code=code, response=response)
+                SendMailTaskErrorRecipient.objects.create(task_batch=batch, recipient=error_recipient_email, code=code, response=response)
 
             if len(recipients_with_errors) == len(self.email_recipients):
                 if notify_failure:
@@ -1678,22 +1650,20 @@ set the attribute again to cause the underlying serialised data to be updated.""
             if body is not None:
                 recipient_errors_text = get_text_list(recipient_errors, last_word=_("and"))
 
-                MessageModel.objects.create(mailbox=self.mailbox, folder_id=MessageModel.INBOX_FOLDER_ID, from_email=settings.WEBMAIL_EMAIL_FOR_ERROR_NOTIFICATION, to=recipient_errors, subject=_("Error email delivery to {recipients}").format(recipients=recipient_errors_text), text_plain=body)
+                Message.objects.create(mailbox=self.mailbox, folder_id=Message.INBOX_FOLDER_ID, from_email=settings.WEBMAIL_EMAIL_FOR_ERROR_NOTIFICATION, to=recipient_errors, subject=_("Error email delivery to {recipients}").format(recipients=recipient_errors_text), text_plain=body)
 
         return last_sent_succeed
 
 
-class SendMailTaskBatchModel(models.Model):
+class SendMailTaskBatch(models.Model):
     # last_attempt_at
-    task = models.ForeignKey(SendMailTaskModel, db_index=True, on_delete=models.CASCADE, related_name="task_batch_list")
+    task = models.ForeignKey(SendMailTask, db_index=True, on_delete=models.CASCADE, related_name="task_batch_list")
     num_batch = models.PositiveIntegerField(_('Num. Batch'))
     processed_at = models.DateTimeField(_('Processed At'), default=timezone.now)
 
     class Meta:
         verbose_name = _("Send Mail Task Batch")
         verbose_name_plural = _("Send Mail Task Batches")
-
-        db_table = "webmail_sendmailtaskbatch"
 
         unique_together = ('task', 'num_batch')
 
@@ -1703,10 +1673,10 @@ class SendMailTaskBatchModel(models.Model):
         return _("Task #%d batch #%d") % (self.task.id, self.num_batch)
 
 
-class SendMailTaskExceptionLogModel(models.Model):
+class SendMailTaskExceptionLog(models.Model):
     # fields from Message
 
-    task_batch = models.OneToOneField(SendMailTaskBatchModel, db_index=True, on_delete=models.CASCADE, related_name="exception_log")
+    task_batch = models.OneToOneField(SendMailTaskBatch, db_index=True, on_delete=models.CASCADE, related_name="exception_log")
     #exception_type = models.CharField(_('Exception type'), max_length=255, blank=True, null=True)
 
     # additional logging fields when_attempted attempted_at
@@ -1718,14 +1688,13 @@ class SendMailTaskExceptionLogModel(models.Model):
     class Meta:
         verbose_name = _("Mail Sent Error Log")
         verbose_name_plural = _("Mail Sent Error Logs")
-        db_table = "webmail_sendmailtaskerrorlog"
 
     def __str__(self):
         return _("Error sending emails for task batch #%d") % self.task_batch.id
 
 
-class SendMailTaskErrorRecipientModel(models.Model):
-    task_batch = models.ForeignKey(SendMailTaskBatchModel, db_index=True, on_delete=models.CASCADE, related_name="error_recipients")
+class SendMailTaskErrorRecipient(models.Model):
+    task_batch = models.ForeignKey(SendMailTaskBatch, db_index=True, on_delete=models.CASCADE, related_name="error_recipients")
     recipient = models.EmailField(_("Recipient Email"), db_index=True)
     code = models.PositiveIntegerField(_('Code'))
     response = models.TextField(_('SMTP Response'))
@@ -1733,5 +1702,63 @@ class SendMailTaskErrorRecipientModel(models.Model):
     class Meta:
         verbose_name = _("Mail Sent Error Recipient")
         verbose_name_plural = _("Mail Sent Error Recipients")
-        db_table = "webmail_sendmailtasklogerrorrecipient"
 
+
+#class Blob(models.Model):
+#    uuid = models.UUIDField(primary_key=True)
+#    encrypted_key = models.TextField(help_text=_("Encrypted key in base64"))
+#    owner = models.ForeignKey(WebmailUser, db_index=True)
+#    data = models.BinaryField()
+
+#    class Meta:
+#        verbose_name = _("Blob")
+#        verbose_name_plural = _("Blobs")
+
+#    def __str__(self):
+#        return self.uuid.hex
+
+
+#class InvertedIndexBlob(models.Model):
+#    owner = models.OneToOneField(WebmailUser, db_index=True)
+#    encrypted_key = models.TextField(help_text=_("Encrypted key in base64"))
+#    encrypted_term_name = models.TextField(help_text=_("Encrypted term name in base64"))
+#    blobs = models.ManyToManyField(Blob)
+
+#    class Meta:
+#        verbose_name = _("Blob metadata")
+#        verbose_name_plural = _("Blob metadatas")
+
+#    def __str__(self):
+#        return self.owner.username
+
+# InvertedIndexBlob stores an inverted index of the emails. The terms are encrypted and are prefixed with the field name. Example: title:term1, body:term2, to:term3. 
+# Relationships between blobs are stored inside the data of the blob
+# Blob types:
+# - Email header
+#   - To
+#   - CC
+#   - BCC
+#   - Subject
+#   - Date
+#   - Has attachments
+#   - Body blob Id
+# - Email body
+#   - text
+#   - list of attachments:
+#       - name: 
+#           - file path
+#           - hash
+#           - encrypted key
+
+# Attachments are stored encrypted in the file system. They are hashed and then organized in different level of subdirectories accoding to the first characters of the hash. Each subgruoup of characters is a folder name.
+
+# TODO: Convert the application to SPA. This is necessary because many tasks are processed in the frontend in the background. Example.
+# - Updating the blob metadata when there is new email, or one email is deleted or a new email is sent
+
+# TODO: To use custom encryption protocol for P2P communication based in Signal protocol (There is no X3DH protocol. A shared key is sent directly in the header of the email encrypted and also the public key and also another parameter to start Diff-heffman algorithm for the rachet protocol). GPG is only used for signing emails.
+
+# TODO: Safe delete
+# TODO. Autodelete feature
+
+# TODO: Implent polling using POP3 TLS-SRP authentication
+# TODO: asyncio POP3 and SMTP server with TLS-SRP authentication support. Provide web enpoints for checking the time and date of logged sessions, failed logins and retrieved messages

@@ -12,6 +12,7 @@ from . import settings
 class WebmailConfig(AppConfig):
     name = 'webmail'
     verbose_name = _("Webmail")
+    default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self):
         if settings.WEBMAIL_PLUGINS:

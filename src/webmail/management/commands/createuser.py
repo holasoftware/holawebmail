@@ -4,7 +4,7 @@ import sys
 from django.core.management.base import BaseCommand
 from django.db.utils import IntegrityError
 
-from webmail.models import WebmailUserModel
+from webmail.models import WebmailUser
 
 
 class Command(BaseCommand):
@@ -27,7 +27,7 @@ class Command(BaseCommand):
 
     def handle(self, username, password=None, displayed_name=False, **kw):
         try:
-            user = WebmailUserModel.objects.create_user(username=username, password=password, displayed_name=displayed_name)
+            user = WebmailUser.objects.create_user(username=username, password=password, displayed_name=displayed_name)
         except IntegrityError:
             self.stderr.write("User with the same username already exists: %s" % username)
             sys.exit(1)

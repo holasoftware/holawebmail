@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.db.utils import IntegrityError
 
 
-from webmail.models import WebmailUserModel, MailboxModel
+from webmail.models import WebmailUser, Mailbox
 
 
 class Command(BaseCommand):
@@ -31,14 +31,14 @@ class Command(BaseCommand):
 
     def handle(self, user_id, mailbox_name, default=False, **kw):
         try:
-            user = WebmailUserModel.objects.get(id=user_id)
-        except WebmailUserModel.DoesNotExist:
+            user = WebmailUser.objects.get(id=user_id)
+        except WebmailUser.DoesNotExist:
             self.stderr.write("User does not exits: %s" % username)
             sys.exit(1)
 
 
         try:
-            mailbox = MailboxModel.objects.create(user=user, name=mailbox_name)
+            mailbox = Mailbox.objects.create(user=user, name=mailbox_name)
         except IntegrityError:
             self.stderr.write("Mailbox with the same name already exists for that user: %s" % mailbox_name)
             sys.exit(1)

@@ -9,7 +9,7 @@ from django.core.management.base import BaseCommand
 from django.core.files.base import ContentFile
 
 
-from .models import WebmailUserModel, ContactModel, MailboxModel, Pop3MailServerModel, SmtpServerModel, TagModel, MessageModel, MessageAttachmentModel
+from .models import WebmailUser, ContactUser, Mailbox, Pop3MailServer, SmtpServer, MessageTag, Message, MessageAttachment
 from . import settings
 
 
@@ -57,7 +57,7 @@ def random_file_attachment(message):
 
     mimetype = 'application/octet-stream'
 
-    MessageAttachmentModel.objects.create(file=ContentFile(file_data, file_name), file_name=file_name, mimetype=mimetype, message=message)
+    MessageAttachment.objects.create(file=ContentFile(file_data, file_name), file_name=file_name, mimetype=mimetype, message=message)
 
 
 def random_body_email(min_sentences=1, max_sentences=50, min_words_paragraph=10, max_words_paragraph=30):
@@ -116,7 +116,7 @@ def create_fake_data(
 
         return "%s@%s" % (username, domain_name)
 
-    user = WebmailUserModel.objects.create_user(username=username, password=password)
+    user = WebmailUser.objects.create_user(username=username, password=password)
 
     contact_usernames = set()
     for i in range(qty_user_contacts):
@@ -129,26 +129,26 @@ def create_fake_data(
 
         contact_usernames.add(username)
 
-        ContactModel.objects.create(user=user, displayed_name=("%s %s"%(contact_name, contact_surname)).title() , email=random_email(username=username))
+        ContactUser.objects.create(user=user, displayed_name=("%s %s"%(contact_name, contact_surname)).title() , email=random_email(username=username))
 
     my_email1 = "my_email1@domain.com"
 
-    mailbox1 = MailboxModel.objects.create(user=user, name="mailbox1", emails=my_email1)
-    mailbox1_server = Pop3MailServerModel.objects.create(mailbox=mailbox1, username="username1", password="password1", ip_address="32.23.1.12", port=9873, use_ssl=True)
+    mailbox1 = Mailbox.objects.create(user=user, name="mailbox1", emails=my_email1)
+    mailbox1_server = Pop3MailServer.objects.create(mailbox=mailbox1, username="username1", password="password1", ip_address="32.23.1.12", port=9873, use_ssl=True)
 
     my_email2 = "my_email2@domain.com"
 
-    mailbox2 = MailboxModel.objects.create(user=user, name="mailbox2", emails=my_email2)
-    mailbox2_server = Pop3MailServerModel.objects.create(mailbox=mailbox2, username="username2", password="password2", ip_address="222.123.12.31", port=7987, use_ssl=True)
+    mailbox2 = Mailbox.objects.create(user=user, name="mailbox2", emails=my_email2)
+    mailbox2_server = Pop3MailServer.objects.create(mailbox=mailbox2, username="username2", password="password2", ip_address="222.123.12.31", port=7987, use_ssl=True)
 
     mailbox1.set_as_default()
 
-    smtp_server1 = SmtpServerModel.objects.create(mailbox=mailbox1, ip_address="123.23.12.1", port=232, username="usernamename1", password="password1", from_email=my_email1)
-    smtp_server2 = SmtpServerModel.objects.create(mailbox=mailbox2, ip_address="223.13.132.12", port=1242, username="usernamename2", password="password2", from_email=my_email2)
+    smtp_server1 = SmtpServer.objects.create(mailbox=mailbox1, ip_address="123.23.12.1", port=232, username="usernamename1", password="password1", from_email=my_email1)
+    smtp_server2 = SmtpServer.objects.create(mailbox=mailbox2, ip_address="223.13.132.12", port=1242, username="usernamename2", password="password2", from_email=my_email2)
 
     last_message = None
 
-    for folder_id in MessageModel.FOLDER_IDS:
+    for folder_id in Message.FOLDER_IDS:
         for i in range(random.choice(range(min_messages_in_folder, max_messages_in_folder))):
             mail_message_id = email_utils.make_msgid()
             is_starred = maybe_true(probability_message_is_starred)
@@ -161,7 +161,7 @@ def create_fake_data(
 
             email_headers = [("From", from_email), ("Subject", subject), ("Date", email_utils.format_datetime(email_utils.localtime())), ("To",  ", ".join(to))]
 
-            if folder_id == MessageModel.SENT_FOLDER_ID:
+            if folder_id == Message.SENT_FOLDER_ID:
                 from_me = True
                 to_me = False
                 to_me_email = None
@@ -191,7 +191,7 @@ def create_fake_data(
 
             body = random_body_email()
 
-            message = MessageModel(from_email=from_email, mailbox=mailbox1, subject=subject, message_id=mail_message_id, to=to, cc=cc, bcc=bcc, original_email_headers=email_headers, is_starred=is_starred, text_plain =body, folder_id=folder_id, to_me=to_me, to_me_email=to_me_email, from_me=from_me)
+            message = Message(from_email=from_email, mailbox=mailbox1, subject=subject, message_id=mail_message_id, to=to, cc=cc, bcc=bcc, original_email_headers=email_headers, is_starred=is_starred, text_plain =body, folder_id=folder_id, to_me=to_me, to_me_email=to_me_email, from_me=from_me)
 
             if last_message is not None:
                 is_reply_to_last_message = maybe_true(probability_of_replying_last_message)
